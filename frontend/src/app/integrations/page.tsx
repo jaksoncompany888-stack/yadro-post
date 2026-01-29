@@ -160,9 +160,9 @@ export default function IntegrationsPage() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-semibold mb-2">Каналы</h1>
+          <h1 className="text-2xl font-semibold mb-2">Анализ конкурентов</h1>
           <p className="text-muted-foreground">
-            Добавьте Telegram каналы для анализа и генерации контента
+            Добавьте каналы конкурентов для анализа их стиля и контента
           </p>
         </div>
         <div className="flex gap-2">
@@ -186,7 +186,7 @@ export default function IntegrationsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Список каналов */}
         <div className="lg:col-span-1">
-          <h2 className="text-lg font-medium mb-4">Мои каналы</h2>
+          <h2 className="text-lg font-medium mb-4">Каналы для анализа</h2>
 
           {loading && channels.length === 0 ? (
             <div className="flex items-center justify-center py-12">

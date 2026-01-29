@@ -43,10 +43,10 @@ export default function AnalyticsPage() {
           Подключите каналы и начните публиковать посты, чтобы видеть аналитику
         </p>
         <a
-          href="/integrations"
+          href="/create"
           className="inline-block px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
         >
-          Подключить каналы
+          Создать пост
         </a>
       </div>
     </div>

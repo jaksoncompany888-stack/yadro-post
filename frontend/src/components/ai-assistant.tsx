@@ -45,14 +45,11 @@ export function AIAssistant() {
     setIsLoading(true)
 
     try {
-      const response = await fetch('/api/ai/chat', {
+      const response = await fetch('/api/posts/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: [...messages, userMessage].map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
+          topic: input,
         }),
       })
 
@@ -61,7 +58,7 @@ export function AIAssistant() {
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: data.message || 'Извините, произошла ошибка.',
+        content: data.text || data.content || 'Не удалось сгенерировать ответ.',
       }
 
       setMessages((prev) => [...prev, assistantMessage])

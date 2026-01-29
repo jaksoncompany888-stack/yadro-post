@@ -23,7 +23,7 @@ const navigation = [
   { name: 'Аналитика', href: '/analytics', icon: BarChart3 },
   { name: 'Медиа', href: '/media', icon: Image },
   { name: 'Плагины', href: '/plugins', icon: Puzzle },
-  { name: 'Интеграции', href: '/integrations', icon: Zap },
+  { name: 'Анализ', href: '/integrations', icon: Zap },
 ]
 
 export function Sidebar() {
