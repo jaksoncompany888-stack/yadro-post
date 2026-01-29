@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Send,
   Wand2,
@@ -29,6 +29,7 @@ interface UserChannel {
 
 export default function CreatePostPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [channels, setChannels] = useState<UserChannel[]>([])
   const [selectedChannels, setSelectedChannels] = useState<string[]>([])
   const [content, setContent] = useState('')
@@ -44,6 +45,24 @@ export default function CreatePostPage() {
   const [showAddChannel, setShowAddChannel] = useState(false)
   const [newChannelInput, setNewChannelInput] = useState('')
   const [addingChannel, setAddingChannel] = useState(false)
+
+  // Загрузка параметров из URL
+  useEffect(() => {
+    const textParam = searchParams.get('text')
+    const dateParam = searchParams.get('date')
+    const timeParam = searchParams.get('time')
+
+    if (textParam) {
+      setContent(textParam)
+    }
+    if (dateParam) {
+      setScheduleDate(dateParam)
+      setShowSchedule(true)
+    }
+    if (timeParam) {
+      setScheduleTime(timeParam)
+    }
+  }, [searchParams])
 
   useEffect(() => {
     loadChannels()

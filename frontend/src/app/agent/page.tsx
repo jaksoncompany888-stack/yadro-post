@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, Sparkles, Wand2, Copy, Check, Calendar, Loader2 } from 'lucide-react'
 import { aiApi } from '@/lib/api'
+import { useRouter } from 'next/navigation'
 
 interface Message {
   id: string
@@ -24,6 +25,7 @@ export default function AgentPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const router = useRouter()
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -165,7 +167,10 @@ export default function AgentPage() {
                       </>
                     )}
                   </button>
-                  <button className="flex items-center gap-1 text-xs px-3 py-1 bg-background/50 rounded-lg hover:bg-background transition-colors">
+                  <button
+                    onClick={() => router.push(`/create?text=${encodeURIComponent(message.content)}`)}
+                    className="flex items-center gap-1 text-xs px-3 py-1 bg-background/50 rounded-lg hover:bg-background transition-colors"
+                  >
                     <Calendar className="w-3 h-3" />
                     <span>Запланировать</span>
                   </button>
