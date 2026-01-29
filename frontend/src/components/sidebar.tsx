@@ -56,8 +56,8 @@ export function Sidebar() {
     <aside className="w-20 bg-card border-r border-border flex flex-col items-center py-4">
       {/* Logo — Earth Core gradient */}
       <Link href="/" className="mb-4">
-        <div className="w-10 h-10 rounded-xl gradient-ember flex items-center justify-center text-white font-bold text-lg shadow-lg glow-core">
-          Я
+        <div className="w-10 h-10 rounded-xl gradient-ember flex items-center justify-center text-white font-bold text-sm shadow-lg glow-core">
+          Yai
         </div>
       </Link>
 
