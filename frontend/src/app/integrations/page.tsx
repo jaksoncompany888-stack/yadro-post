@@ -50,11 +50,38 @@ export default function IntegrationsPage() {
   const [analyzing, setAnalyzing] = useState(false)
   const [error, setError] = useState('')
   const [selectedChannel, setSelectedChannel] = useState<ChannelAnalysis | null>(null)
+  const [loadingMetrics, setLoadingMetrics] = useState(false)
 
   // Загрузка сохранённых каналов при старте
   useEffect(() => {
     loadChannels()
   }, [])
+
+  // Выбор канала с подгрузкой метрик если нужно
+  const selectChannel = async (ch: ChannelAnalysis) => {
+    setSelectedChannel(ch)
+
+    // Если метрик нет — загружаем
+    if (!ch.metrics?.posts_analyzed) {
+      setLoadingMetrics(true)
+      try {
+        const response = await channelsApi.analyze(ch.channel.username)
+        const analysis = response.data as ChannelAnalysis
+
+        // Обновляем в списке
+        setChannels((prev) =>
+          prev.map((c) =>
+            c.channel.username === ch.channel.username ? analysis : c
+          )
+        )
+        setSelectedChannel(analysis)
+      } catch (err) {
+        console.error('Failed to load metrics:', err)
+      } finally {
+        setLoadingMetrics(false)
+      }
+    }
+  }
 
   const loadChannels = async () => {
     try {
@@ -176,7 +203,7 @@ export default function IntegrationsPage() {
               {channels.map((ch) => (
                 <div
                   key={ch.channel.username}
-                  onClick={() => setSelectedChannel(ch)}
+                  onClick={() => selectChannel(ch)}
                   className={`p-4 bg-card rounded-xl border cursor-pointer transition-all ${
                     selectedChannel?.channel.username === ch.channel.username
                       ? 'border-primary glow-core'
@@ -243,7 +270,13 @@ export default function IntegrationsPage() {
                 </div>
               </div>
 
-              {selectedChannel.metrics?.posts_analyzed ? (
+              {loadingMetrics ? (
+                <div className="text-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
+                  <p className="text-muted-foreground">Анализируем канал...</p>
+                  <p className="text-xs text-muted-foreground mt-2">Это может занять 10-30 секунд</p>
+                </div>
+              ) : selectedChannel.metrics?.posts_analyzed ? (
                 <>
                   {/* Основные метрики */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -361,8 +394,14 @@ export default function IntegrationsPage() {
                 </>
               ) : (
                 <div className="text-center py-12">
-                  <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
-                  <p className="text-muted-foreground">Загрузка метрик...</p>
+                  <BarChart3 className="w-8 h-8 text-muted-foreground mx-auto mb-4 opacity-50" />
+                  <p className="text-muted-foreground">Метрики не загружены</p>
+                  <button
+                    onClick={() => selectChannel(selectedChannel)}
+                    className="mt-4 px-4 py-2 btn-core text-white rounded-lg text-sm"
+                  >
+                    Загрузить метрики
+                  </button>
                 </div>
               )}
             </div>
