@@ -31,6 +31,12 @@ export const channelsApi = {
   get: (id: string) => api.get(`/api/channels/${id}`),
   create: (data: any) => api.post('/api/channels', data),
   delete: (id: string) => api.delete(`/api/channels/${id}`),
+  // Новые методы для анализа каналов
+  analyze: (channel: string, limit?: number) =>
+    api.post('/api/channels/analyze', { channel, limit: limit || 10 }),
+  add: (channel: string) => api.post('/api/channels/add', { channel }),
+  remove: (username: string) => api.delete(`/api/channels/${username}`),
+  // Legacy методы
   connectTelegram: (code: string) => api.post('/api/channels/telegram/connect', { code }),
   connectVK: (token: string, groupId: string) =>
     api.post('/api/channels/vk/connect', { access_token: token, group_id: groupId }),

@@ -1,32 +1,57 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Send, MessageCircle, Check, Plus, ExternalLink, Loader2, X, RefreshCw } from 'lucide-react'
+import {
+  Send,
+  Plus,
+  Loader2,
+  X,
+  RefreshCw,
+  BarChart3,
+  Users,
+  Eye,
+  Heart,
+  TrendingUp,
+} from 'lucide-react'
 import { channelsApi } from '@/lib/api'
 
-interface Channel {
-  id: string
-  name: string
-  type: 'telegram' | 'vk'
-  channel_id: string
-  is_connected: boolean
-  avatar_url?: string
+interface ChannelInfo {
+  username: string
+  title: string
+  subscribers: number
+  description: string
+}
+
+interface ChannelMetrics {
+  posts_analyzed: number
+  avg_length: number
+  length_category: string
+  avg_emoji: number
+  emoji_style: string
+  avg_views: number
+  avg_reactions: number
+  engagement_rate: number
+  content_type: string
+  recommended_temperature: number
+  top_words: string[]
+  hook_patterns: string[]
+}
+
+interface ChannelAnalysis {
+  channel: ChannelInfo
+  metrics: ChannelMetrics
 }
 
 export default function IntegrationsPage() {
-  const [channels, setChannels] = useState<Channel[]>([])
-  const [loading, setLoading] = useState(true)
-  const [showTelegramModal, setShowTelegramModal] = useState(false)
-  const [showVKModal, setShowVKModal] = useState(false)
-  const [connectCode, setConnectCode] = useState('')
-  const [connecting, setConnecting] = useState(false)
+  const [channels, setChannels] = useState<ChannelAnalysis[]>([])
+  const [loading, setLoading] = useState(false)
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [channelInput, setChannelInput] = useState('')
+  const [analyzing, setAnalyzing] = useState(false)
   const [error, setError] = useState('')
+  const [selectedChannel, setSelectedChannel] = useState<ChannelAnalysis | null>(null)
 
-  // VK form state
-  const [vkToken, setVkToken] = useState('')
-  const [vkGroupId, setVkGroupId] = useState('')
-
-  // Load channels on mount
+  // Загрузка сохранённых каналов при старте
   useEffect(() => {
     loadChannels()
   }, [])
@@ -35,7 +60,15 @@ export default function IntegrationsPage() {
     try {
       setLoading(true)
       const response = await channelsApi.list()
-      setChannels(response.data)
+      // Каналы приходят как ChannelInfo, нужно обогатить метриками
+      const channelInfos = response.data as ChannelInfo[]
+      // Для простоты показываем без метрик, метрики загружаем по клику
+      setChannels(
+        channelInfos.map((ch) => ({
+          channel: ch,
+          metrics: {} as ChannelMetrics,
+        }))
+      )
     } catch (err) {
       console.error('Failed to load channels:', err)
     } finally {
@@ -43,207 +76,336 @@ export default function IntegrationsPage() {
     }
   }
 
-  const openTelegramModal = () => {
-    setConnectCode(Math.random().toString(36).substring(2, 6).toUpperCase())
-    setError('')
-    setShowTelegramModal(true)
-  }
+  const analyzeChannel = async () => {
+    if (!channelInput.trim()) return
 
-  const checkTelegramConnection = async () => {
-    setConnecting(true)
+    setAnalyzing(true)
     setError('')
 
     try {
-      const response = await channelsApi.connectTelegram(connectCode)
+      const response = await channelsApi.analyze(channelInput)
+      const analysis = response.data as ChannelAnalysis
 
-      if (response.data.status === 'connected') {
-        // Reload channels
-        await loadChannels()
-        setShowTelegramModal(false)
-      } else if (response.data.status === 'pending') {
-        setError('Бот ещё не получил команду. Убедитесь, что бот добавлен в канал как администратор.')
+      // Добавляем в список
+      setChannels((prev) => {
+        // Проверяем дубликат
+        const exists = prev.find((c) => c.channel.username === analysis.channel.username)
+        if (exists) {
+          return prev.map((c) =>
+            c.channel.username === analysis.channel.username ? analysis : c
+          )
+        }
+        return [...prev, analysis]
+      })
+
+      // Сохраняем на сервере
+      await channelsApi.add(channelInput)
+
+      setShowAddModal(false)
+      setChannelInput('')
+      setSelectedChannel(analysis)
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Не удалось проанализировать канал')
+    } finally {
+      setAnalyzing(false)
+    }
+  }
+
+  const removeChannel = async (username: string) => {
+    try {
+      await channelsApi.remove(username)
+      setChannels((prev) => prev.filter((c) => c.channel.username !== username))
+      if (selectedChannel?.channel.username === username) {
+        setSelectedChannel(null)
       }
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Ошибка подключения')
-    } finally {
-      setConnecting(false)
-    }
-  }
-
-  const connectVK = async () => {
-    if (!vkToken || !vkGroupId) {
-      setError('Заполните все поля')
-      return
-    }
-
-    setConnecting(true)
-    setError('')
-
-    try {
-      await channelsApi.connectVK(vkToken, vkGroupId)
-      await loadChannels()
-      setShowVKModal(false)
-      setVkToken('')
-      setVkGroupId('')
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Ошибка подключения VK')
-    } finally {
-      setConnecting(false)
-    }
-  }
-
-  const deleteChannel = async (channelId: string) => {
-    if (!confirm('Отключить этот канал?')) return
-
-    try {
-      await channelsApi.delete(channelId)
-      setChannels(channels.filter(c => c.id !== channelId))
     } catch (err) {
-      console.error('Failed to delete channel:', err)
+      console.error('Failed to remove channel:', err)
     }
   }
 
-  const integrations = [
-    {
-      id: 'telegram',
-      name: 'Telegram',
-      description: 'Каналы и группы в Telegram',
-      icon: Send,
-      color: 'text-blue-400',
-      bgColor: 'bg-blue-400/10',
-      onClick: openTelegramModal,
-    },
-    {
-      id: 'vk',
-      name: 'ВКонтакте',
-      description: 'Сообщества и группы VK',
-      icon: MessageCircle,
-      color: 'text-sky-500',
-      bgColor: 'bg-sky-500/10',
-      onClick: () => {
-        setError('')
-        setShowVKModal(true)
-      },
-    },
-  ]
+  const formatNumber = (num: number) => {
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M'
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'K'
+    return num.toString()
+  }
 
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-semibold mb-2">Интеграции</h1>
-          <p className="text-muted-foreground">Подключите социальные сети для публикации постов</p>
+          <h1 className="text-2xl font-semibold mb-2">Каналы</h1>
+          <p className="text-muted-foreground">
+            Добавьте Telegram каналы для анализа и генерации контента
+          </p>
         </div>
-        <button
-          onClick={loadChannels}
-          className="p-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
-          title="Обновить"
-        >
-          <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={loadChannels}
+            className="p-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
+            title="Обновить"
+          >
+            <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="px-4 py-2 btn-core text-white rounded-lg flex items-center gap-2"
+          >
+            <Plus className="w-5 h-5" />
+            Добавить канал
+          </button>
+        </div>
       </div>
 
-      {/* Connected channels */}
-      {channels.length > 0 && (
-        <div className="mb-8">
-          <h2 className="text-lg font-medium mb-4">Подключённые каналы</h2>
-          <div className="space-y-3">
-            {channels.map((channel) => (
-              <div key={channel.id} className="flex items-center justify-between p-4 bg-card rounded-xl border border-border">
-                <div className="flex items-center gap-3">
-                  {channel.type === 'telegram' ? (
-                    <div className="w-10 h-10 rounded-full bg-blue-400/10 flex items-center justify-center">
-                      <Send className="w-5 h-5 text-blue-400" />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Список каналов */}
+        <div className="lg:col-span-1">
+          <h2 className="text-lg font-medium mb-4">Мои каналы</h2>
+
+          {loading && channels.length === 0 ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          ) : channels.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Send className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>Каналов пока нет</p>
+              <p className="text-sm mt-2">Добавьте канал для анализа</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {channels.map((ch) => (
+                <div
+                  key={ch.channel.username}
+                  onClick={() => setSelectedChannel(ch)}
+                  className={`p-4 bg-card rounded-xl border cursor-pointer transition-all ${
+                    selectedChannel?.channel.username === ch.channel.username
+                      ? 'border-primary glow-core'
+                      : 'border-border hover:border-primary/50'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-blue-400/10 flex items-center justify-center">
+                        <Send className="w-5 h-5 text-blue-400" />
+                      </div>
+                      <div>
+                        <div className="font-medium">{ch.channel.title}</div>
+                        <div className="text-sm text-muted-foreground">
+                          @{ch.channel.username}
+                        </div>
+                      </div>
                     </div>
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-sky-500/10 flex items-center justify-center">
-                      <MessageCircle className="w-5 h-5 text-sky-500" />
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        removeChannel(ch.channel.username)
+                      }}
+                      className="p-1 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {ch.channel.subscribers > 0 && (
+                    <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
+                      <Users className="w-4 h-4" />
+                      <span>{formatNumber(ch.channel.subscribers)} подписчиков</span>
                     </div>
                   )}
-                  <div>
-                    <div className="font-medium">{channel.name}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {channel.type === 'telegram' ? 'Telegram' : 'VK'} • {channel.channel_id}
+
+                  {ch.metrics?.content_type && (
+                    <div className="mt-2">
+                      <span className="text-xs px-2 py-1 bg-primary/20 text-primary rounded-full">
+                        {ch.metrics.content_type}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Детали канала */}
+        <div className="lg:col-span-2">
+          {selectedChannel ? (
+            <div className="bg-card rounded-xl border border-border p-6">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-16 h-16 rounded-full bg-blue-400/10 flex items-center justify-center">
+                  <Send className="w-8 h-8 text-blue-400" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold">{selectedChannel.channel.title}</h2>
+                  <p className="text-muted-foreground">@{selectedChannel.channel.username}</p>
+                  {selectedChannel.channel.description && (
+                    <p className="text-sm mt-1">{selectedChannel.channel.description}</p>
+                  )}
+                </div>
+              </div>
+
+              {selectedChannel.metrics?.posts_analyzed ? (
+                <>
+                  {/* Основные метрики */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div className="p-4 bg-secondary rounded-lg">
+                      <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                        <Users className="w-4 h-4" />
+                        <span className="text-xs">Подписчики</span>
+                      </div>
+                      <div className="text-xl font-semibold">
+                        {formatNumber(selectedChannel.channel.subscribers)}
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-secondary rounded-lg">
+                      <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                        <Eye className="w-4 h-4" />
+                        <span className="text-xs">Ср. просмотры</span>
+                      </div>
+                      <div className="text-xl font-semibold">
+                        {formatNumber(selectedChannel.metrics.avg_views)}
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-secondary rounded-lg">
+                      <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                        <Heart className="w-4 h-4" />
+                        <span className="text-xs">Ср. реакции</span>
+                      </div>
+                      <div className="text-xl font-semibold">
+                        {formatNumber(selectedChannel.metrics.avg_reactions)}
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-secondary rounded-lg">
+                      <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                        <TrendingUp className="w-4 h-4" />
+                        <span className="text-xs">Engagement</span>
+                      </div>
+                      <div className="text-xl font-semibold">
+                        {selectedChannel.metrics.engagement_rate}%
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2 text-green-500">
-                    <Check className="w-4 h-4" />
-                    <span className="text-sm">Подключено</span>
+
+                  {/* Стиль контента */}
+                  <div className="mb-6">
+                    <h3 className="text-lg font-medium mb-3 flex items-center gap-2">
+                      <BarChart3 className="w-5 h-5" />
+                      Анализ стиля
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-3 bg-secondary rounded-lg">
+                        <span className="text-sm text-muted-foreground">Тип контента</span>
+                        <div className="font-medium capitalize">
+                          {selectedChannel.metrics.content_type}
+                        </div>
+                      </div>
+                      <div className="p-3 bg-secondary rounded-lg">
+                        <span className="text-sm text-muted-foreground">Длина постов</span>
+                        <div className="font-medium">
+                          {selectedChannel.metrics.length_category} (~
+                          {selectedChannel.metrics.avg_length} симв.)
+                        </div>
+                      </div>
+                      <div className="p-3 bg-secondary rounded-lg">
+                        <span className="text-sm text-muted-foreground">Эмодзи</span>
+                        <div className="font-medium">{selectedChannel.metrics.emoji_style}</div>
+                      </div>
+                      <div className="p-3 bg-secondary rounded-lg">
+                        <span className="text-sm text-muted-foreground">
+                          Рекомендуемая temperature
+                        </span>
+                        <div className="font-medium">
+                          {selectedChannel.metrics.recommended_temperature}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <button
-                    onClick={() => deleteChannel(channel.id)}
-                    className="p-2 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors"
-                    title="Отключить"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+
+                  {/* Хуки и топ слова */}
+                  <div className="grid grid-cols-2 gap-6">
+                    {selectedChannel.metrics.hook_patterns?.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-medium mb-2">Паттерны хуков</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedChannel.metrics.hook_patterns.map((pattern, i) => (
+                            <span
+                              key={i}
+                              className="text-xs px-2 py-1 bg-primary/20 text-primary rounded-full"
+                            >
+                              {pattern}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedChannel.metrics.top_words?.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-medium mb-2">Топ слова</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedChannel.metrics.top_words.slice(0, 6).map((word, i) => (
+                            <span key={i} className="text-xs px-2 py-1 bg-secondary rounded-full">
+                              {word}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-6 pt-6 border-t border-border text-sm text-muted-foreground">
+                    Проанализировано {selectedChannel.metrics.posts_analyzed} постов
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
+                  <p className="text-muted-foreground">Загрузка метрик...</p>
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Loading state */}
-      {loading && channels.length === 0 && (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        </div>
-      )}
-
-      {/* Available integrations */}
-      <h2 className="text-lg font-medium mb-4">Доступные интеграции</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {integrations.map((integration) => (
-          <button
-            key={integration.id}
-            onClick={integration.onClick}
-            className="p-6 bg-card rounded-xl border border-border hover:border-primary/50 hover:glow-core transition-all text-left"
-          >
-            <div className={`w-12 h-12 rounded-xl ${integration.bgColor} flex items-center justify-center mb-4`}>
-              <integration.icon className={`w-6 h-6 ${integration.color}`} />
+              )}
             </div>
-            <h3 className="font-medium mb-1">{integration.name}</h3>
-            <p className="text-sm text-muted-foreground mb-4">{integration.description}</p>
-            <div className="flex items-center gap-2 text-primary text-sm">
-              <Plus className="w-4 h-4" />
-              Подключить
+          ) : (
+            <div className="bg-card rounded-xl border border-border p-12 text-center">
+              <BarChart3 className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+              <h3 className="text-lg font-medium mb-2">Выберите канал</h3>
+              <p className="text-muted-foreground">
+                Кликните на канал слева, чтобы увидеть детальный анализ
+              </p>
             </div>
-          </button>
-        ))}
+          )}
+        </div>
       </div>
 
-      {/* Telegram Modal */}
-      {showTelegramModal && (
+      {/* Add Channel Modal */}
+      {showAddModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-card rounded-xl p-6 w-[480px] border border-border shadow-2xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">Подключить Telegram</h3>
-              <button
-                onClick={() => setShowTelegramModal(false)}
-                className="p-1 rounded hover:bg-secondary"
-              >
+              <h3 className="text-lg font-semibold">Добавить Telegram канал</h3>
+              <button onClick={() => setShowAddModal(false)} className="p-1 rounded hover:bg-secondary">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-4">
-              <div className="p-4 bg-secondary rounded-lg">
-                <div className="text-sm text-muted-foreground mb-2">Шаг 1</div>
-                <p>Добавьте бота <code className="px-2 py-1 bg-background rounded text-primary">@YadroPostBot</code> в ваш канал как администратора</p>
-              </div>
-
-              <div className="p-4 bg-secondary rounded-lg">
-                <div className="text-sm text-muted-foreground mb-2">Шаг 2</div>
-                <p>Отправьте в канал команду:</p>
-                <code className="block mt-2 px-4 py-3 bg-background rounded text-primary font-mono text-lg">/connect {connectCode}</code>
-              </div>
-
-              <div className="p-4 bg-secondary rounded-lg">
-                <div className="text-sm text-muted-foreground mb-2">Шаг 3</div>
-                <p>Нажмите кнопку ниже после отправки команды</p>
+              <div>
+                <label className="block text-sm text-muted-foreground mb-2">
+                  Username канала
+                </label>
+                <input
+                  type="text"
+                  placeholder="@durov или durov"
+                  value={channelInput}
+                  onChange={(e) => setChannelInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && analyzeChannel()}
+                  className="w-full bg-input rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary"
+                  autoFocus
+                />
+                <p className="text-xs text-muted-foreground mt-2">
+                  Канал должен быть публичным для анализа
+                </p>
               </div>
 
               {error && (
@@ -255,96 +417,27 @@ export default function IntegrationsPage() {
 
             <div className="flex gap-3 mt-6">
               <button
-                onClick={() => setShowTelegramModal(false)}
+                onClick={() => setShowAddModal(false)}
                 className="flex-1 py-3 bg-secondary rounded-lg hover:bg-secondary/80 transition-colors"
               >
                 Отмена
               </button>
               <button
-                onClick={checkTelegramConnection}
-                disabled={connecting}
+                onClick={analyzeChannel}
+                disabled={analyzing || !channelInput.trim()}
                 className="flex-1 py-3 btn-core text-white rounded-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {connecting && <Loader2 className="w-4 h-4 animate-spin" />}
-                Проверить подключение
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* VK Modal */}
-      {showVKModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-card rounded-xl p-6 w-[480px] border border-border shadow-2xl">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">Подключить ВКонтакте</h3>
-              <button
-                onClick={() => setShowVKModal(false)}
-                className="p-1 rounded hover:bg-secondary"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <p className="text-muted-foreground">
-                Для подключения VK сообщества необходим токен доступа с правами на управление сообществом.
-              </p>
-
-              <div>
-                <label className="block text-sm text-muted-foreground mb-2">VK Access Token</label>
-                <input
-                  type="text"
-                  placeholder="vk1.a.xxx..."
-                  value={vkToken}
-                  onChange={(e) => setVkToken(e.target.value)}
-                  className="w-full bg-input rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm text-muted-foreground mb-2">ID сообщества</label>
-                <input
-                  type="text"
-                  placeholder="123456789"
-                  value={vkGroupId}
-                  onChange={(e) => setVkGroupId(e.target.value)}
-                  className="w-full bg-input rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-
-              <a
-                href="https://vk.com/editapp?act=create"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 text-primary text-sm hover:underline"
-              >
-                <ExternalLink className="w-4 h-4" />
-                Как получить токен?
-              </a>
-
-              {error && (
-                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
-                  {error}
-                </div>
-              )}
-            </div>
-
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setShowVKModal(false)}
-                className="flex-1 py-3 bg-secondary rounded-lg hover:bg-secondary/80 transition-colors"
-              >
-                Отмена
-              </button>
-              <button
-                onClick={connectVK}
-                disabled={connecting || !vkToken || !vkGroupId}
-                className="flex-1 py-3 btn-core text-white rounded-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {connecting && <Loader2 className="w-4 h-4 animate-spin" />}
-                Подключить
+                {analyzing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Анализирую...
+                  </>
+                ) : (
+                  <>
+                    <BarChart3 className="w-4 h-4" />
+                    Анализировать
+                  </>
+                )}
               </button>
             </div>
           </div>
