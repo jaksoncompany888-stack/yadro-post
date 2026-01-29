@@ -15,6 +15,8 @@ import {
   Sun,
   Moon,
   Plus,
+  Menu,
+  X,
 } from 'lucide-react'
 
 const navigation = [
@@ -26,9 +28,19 @@ const navigation = [
   { name: 'Анализ', href: '/integrations', icon: Zap },
 ]
 
+// Для мобильного нижнего меню - только основные пункты
+const mobileNavigation = [
+  { name: 'Календарь', href: '/', icon: Calendar },
+  { name: 'Агент', href: '/agent', icon: MessageSquare },
+  { name: 'Создать', href: '/create', icon: Plus, isCreate: true },
+  { name: 'Аналитика', href: '/analytics', icon: BarChart3 },
+  { name: 'Ещё', href: '#more', icon: Menu, isMore: true },
+]
+
 export function Sidebar() {
   const pathname = usePathname()
   const [isDark, setIsDark] = useState(true)
+  const [showMobileMenu, setShowMobileMenu] = useState(false)
 
   // Load theme from localStorage
   useEffect(() => {
@@ -53,70 +65,170 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="w-20 bg-card border-r border-border flex flex-col items-center py-4">
-      {/* Logo — Earth Core gradient */}
-      <Link href="/" className="mb-4">
-        <div className="w-10 h-10 rounded-xl gradient-ember flex items-center justify-center text-white font-bold text-sm shadow-lg glow-core">
-          Yai
+    <>
+      {/* Desktop Sidebar */}
+      <aside className="hidden md:flex w-20 bg-card border-r border-border flex-col items-center py-4">
+        {/* Logo — Earth Core gradient */}
+        <Link href="/" className="mb-4">
+          <div className="w-10 h-10 rounded-xl gradient-ember flex items-center justify-center text-white font-bold text-sm shadow-lg glow-core">
+            Yai
+          </div>
+        </Link>
+
+        {/* Create Post Button */}
+        <Link
+          href="/create"
+          className="w-14 h-10 mb-6 rounded-xl btn-core text-white flex items-center justify-center gap-1 shadow-lg hover:scale-105 transition-transform"
+        >
+          <Plus className="w-5 h-5" />
+        </Link>
+
+        {/* Navigation */}
+        <nav className="flex-1 flex flex-col gap-2">
+          {navigation.map((item) => {
+            const isActive = pathname === item.href
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                className={clsx(
+                  'w-14 h-14 rounded-xl flex flex-col items-center justify-center gap-1 transition-all duration-200',
+                  isActive
+                    ? 'bg-primary/20 text-primary glow-core'
+                    : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                )}
+              >
+                <item.icon className="w-5 h-5" />
+                <span className="text-[10px]">{item.name}</span>
+              </Link>
+            )
+          })}
+        </nav>
+
+        {/* Theme Toggle */}
+        <button
+          onClick={toggleTheme}
+          className="w-14 h-14 rounded-xl flex flex-col items-center justify-center gap-1 transition-all duration-200 text-muted-foreground hover:bg-secondary hover:text-foreground mb-2"
+          title={isDark ? 'Светлая тема' : 'Тёмная тема'}
+        >
+          {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          <span className="text-[10px]">{isDark ? 'Светлая' : 'Тёмная'}</span>
+        </button>
+
+        {/* Settings */}
+        <Link
+          href="/settings"
+          className={clsx(
+            'w-14 h-14 rounded-xl flex flex-col items-center justify-center gap-1 transition-all duration-200',
+            pathname === '/settings'
+              ? 'bg-primary/20 text-primary'
+              : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+          )}
+        >
+          <Settings className="w-5 h-5" />
+          <span className="text-[10px]">Настройки</span>
+        </Link>
+
+        {/* Version */}
+        <div className="mt-4 text-xs text-muted-foreground">v1.0.0</div>
+      </aside>
+
+      {/* Mobile Bottom Navigation */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-card border-t border-border z-50 safe-area-bottom">
+        <div className="flex items-center justify-around h-16">
+          {mobileNavigation.map((item) => {
+            const isActive = pathname === item.href
+
+            if (item.isMore) {
+              return (
+                <button
+                  key={item.name}
+                  onClick={() => setShowMobileMenu(true)}
+                  className="flex flex-col items-center justify-center gap-1 text-muted-foreground"
+                >
+                  <item.icon className="w-6 h-6" />
+                  <span className="text-[10px]">{item.name}</span>
+                </button>
+              )
+            }
+
+            if (item.isCreate) {
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className="flex items-center justify-center w-14 h-14 -mt-4 rounded-full btn-core text-white shadow-lg"
+                >
+                  <item.icon className="w-7 h-7" />
+                </Link>
+              )
+            }
+
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                className={clsx(
+                  'flex flex-col items-center justify-center gap-1 transition-colors',
+                  isActive ? 'text-primary' : 'text-muted-foreground'
+                )}
+              >
+                <item.icon className="w-6 h-6" />
+                <span className="text-[10px]">{item.name}</span>
+              </Link>
+            )
+          })}
         </div>
-      </Link>
-
-      {/* Create Post Button */}
-      <Link
-        href="/create"
-        className="w-14 h-10 mb-6 rounded-xl btn-core text-white flex items-center justify-center gap-1 shadow-lg hover:scale-105 transition-transform"
-      >
-        <Plus className="w-5 h-5" />
-      </Link>
-
-      {/* Navigation */}
-      <nav className="flex-1 flex flex-col gap-2">
-        {navigation.map((item) => {
-          const isActive = pathname === item.href
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={clsx(
-                'w-14 h-14 rounded-xl flex flex-col items-center justify-center gap-1 transition-all duration-200',
-                isActive
-                  ? 'bg-primary/20 text-primary glow-core'
-                  : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
-              )}
-            >
-              <item.icon className="w-5 h-5" />
-              <span className="text-[10px]">{item.name}</span>
-            </Link>
-          )
-        })}
       </nav>
 
-      {/* Theme Toggle */}
-      <button
-        onClick={toggleTheme}
-        className="w-14 h-14 rounded-xl flex flex-col items-center justify-center gap-1 transition-all duration-200 text-muted-foreground hover:bg-secondary hover:text-foreground mb-2"
-        title={isDark ? 'Светлая тема' : 'Тёмная тема'}
-      >
-        {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-        <span className="text-[10px]">{isDark ? 'Светлая' : 'Тёмная'}</span>
-      </button>
+      {/* Mobile More Menu */}
+      {showMobileMenu && (
+        <div className="md:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50" onClick={() => setShowMobileMenu(false)}>
+          <div
+            className="absolute bottom-0 left-0 right-0 bg-card rounded-t-3xl p-6 safe-area-bottom"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold">Меню</h3>
+              <button
+                onClick={() => setShowMobileMenu(false)}
+                className="p-2 rounded-full hover:bg-secondary"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
-      {/* Settings */}
-      <Link
-        href="/settings"
-        className={clsx(
-          'w-14 h-14 rounded-xl flex flex-col items-center justify-center gap-1 transition-all duration-200',
-          pathname === '/settings'
-            ? 'bg-primary/20 text-primary'
-            : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
-        )}
-      >
-        <Settings className="w-5 h-5" />
-        <span className="text-[10px]">Настройки</span>
-      </Link>
+            <div className="grid grid-cols-4 gap-4 mb-6">
+              {[...navigation, { name: 'Настройки', href: '/settings', icon: Settings }].map((item) => {
+                const isActive = pathname === item.href
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    onClick={() => setShowMobileMenu(false)}
+                    className={clsx(
+                      'flex flex-col items-center justify-center gap-2 p-4 rounded-xl transition-colors',
+                      isActive ? 'bg-primary/20 text-primary' : 'hover:bg-secondary'
+                    )}
+                  >
+                    <item.icon className="w-6 h-6" />
+                    <span className="text-xs">{item.name}</span>
+                  </Link>
+                )
+              })}
+            </div>
 
-      {/* Version */}
-      <div className="mt-4 text-xs text-muted-foreground">v1.0.0</div>
-    </aside>
+            {/* Theme Toggle */}
+            <button
+              onClick={toggleTheme}
+              className="w-full py-4 bg-secondary rounded-xl flex items-center justify-center gap-3"
+            >
+              {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              <span>{isDark ? 'Светлая тема' : 'Тёмная тема'}</span>
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
