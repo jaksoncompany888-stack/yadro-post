@@ -457,7 +457,7 @@ export default function CreatePostPage() {
                   autoFocus
                 />
                 <p className="text-xs text-muted-foreground mt-2">
-                  Бот @YadroSMMBot должен быть администратором канала с правами на публикацию
+                  Бот @Yadro888_bot должен быть администратором канала с правами на публикацию
                 </p>
               </div>
 
