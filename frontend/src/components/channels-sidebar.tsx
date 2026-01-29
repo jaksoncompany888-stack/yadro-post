@@ -1,34 +1,37 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Send, MessageCircle, X } from 'lucide-react'
+import { Plus, Send, MessageCircle, X, Loader2, Check } from 'lucide-react'
 import { clsx } from 'clsx'
-import Link from 'next/link'
-import { channelsApi } from '@/lib/api'
+import { userChannelsApi } from '@/lib/api'
 
-interface Channel {
-  id: string
-  name: string
-  type: 'telegram' | 'vk'
+interface UserChannel {
+  platform: string
   channel_id: string
-  is_connected: boolean
-  isSelected: boolean
+  name: string
+  username?: string
+  subscribers: number
+  is_valid: boolean
+  can_post: boolean
 }
 
 export function ChannelsSidebar() {
-  const [channels, setChannels] = useState<Channel[]>([])
+  const [channels, setChannels] = useState<UserChannel[]>([])
+  const [selectedChannels, setSelectedChannels] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
 
-  // Load channels on mount
   useEffect(() => {
     loadChannels()
   }, [])
 
   const loadChannels = async () => {
     try {
-      const response = await channelsApi.list()
-      setChannels(response.data.map((ch: any) => ({ ...ch, isSelected: true })))
+      const response = await userChannelsApi.list()
+      const data = response.data || []
+      setChannels(data)
+      // Select all by default
+      setSelectedChannels(data.map((ch: UserChannel) => ch.channel_id))
     } catch (err) {
       console.error('Failed to load channels:', err)
     } finally {
@@ -36,103 +39,161 @@ export function ChannelsSidebar() {
     }
   }
 
-  const toggleChannel = (id: string) => {
-    setChannels(channels.map(ch =>
-      ch.id === id ? { ...ch, isSelected: !ch.isSelected } : ch
-    ))
+  const toggleChannel = (channelId: string) => {
+    setSelectedChannels(prev =>
+      prev.includes(channelId)
+        ? prev.filter(id => id !== channelId)
+        : [...prev, channelId]
+    )
+  }
+
+  const removeChannel = async (channelId: string) => {
+    try {
+      await userChannelsApi.remove(channelId)
+      setChannels(prev => prev.filter(ch => ch.channel_id !== channelId))
+      setSelectedChannels(prev => prev.filter(id => id !== channelId))
+    } catch (err) {
+      console.error('Failed to remove channel:', err)
+    }
+  }
+
+  const handleChannelAdded = (channel: UserChannel) => {
+    setChannels(prev => [...prev, channel])
+    setSelectedChannels(prev => [...prev, channel.channel_id])
+    setShowAddModal(false)
+  }
+
+  const formatNumber = (num: number) => {
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M'
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'K'
+    return num.toString()
   }
 
   return (
     <div className="w-52 border-r border-border p-4 flex flex-col">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-medium">Каналы</h2>
+        <h2 className="text-sm font-medium">Мои каналы</h2>
         <button
           onClick={() => setShowAddModal(true)}
           className="text-muted-foreground hover:text-primary transition-colors"
+          title="Добавить канал для постинга"
         >
           <Plus className="w-4 h-4" />
         </button>
       </div>
 
-      {/* Channel type icons */}
-      <div className="flex gap-2 mb-4">
-        <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
-          <Send className="w-4 h-4 text-blue-400" />
-        </div>
-        <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
-          <MessageCircle className="w-4 h-4 text-sky-500" />
-        </div>
-      </div>
-
       {loading ? (
         <div className="flex-1 flex items-center justify-center">
-          <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <Loader2 className="w-6 h-6 animate-spin text-primary" />
         </div>
       ) : channels.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
+        <div className="flex-1 flex flex-col items-center justify-center text-center px-2">
           <div className="text-muted-foreground text-sm mb-4">
             Каналов пока нет
           </div>
-          <p className="text-xs text-muted-foreground">
-            Подключите социальные аккаунты, чтобы начать планировать и публиковать.
+          <p className="text-xs text-muted-foreground mb-4">
+            Добавьте свой Telegram канал для публикации постов
           </p>
-          <Link
-            href="/integrations"
-            className="mt-4 px-4 py-2 btn-core text-white rounded-lg text-sm"
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="px-4 py-2 btn-core text-white rounded-lg text-sm"
           >
             Добавить канал
-          </Link>
+          </button>
         </div>
       ) : (
         <div className="flex-1 space-y-2">
           {channels.map((channel) => (
-            <button
-              key={channel.id}
-              onClick={() => toggleChannel(channel.id)}
-              className={clsx(
-                'w-full flex items-center gap-3 p-2 rounded-lg transition-all',
-                channel.isSelected
-                  ? 'bg-primary/20 text-foreground'
-                  : 'hover:bg-secondary text-muted-foreground'
-              )}
-            >
-              <div className={clsx(
-                'w-8 h-8 rounded-full flex items-center justify-center',
-                channel.isSelected ? 'bg-primary/20' : 'bg-secondary'
-              )}>
-                {channel.type === 'telegram' ? (
-                  <Send className="w-4 h-4 text-blue-400" />
-                ) : (
-                  <MessageCircle className="w-4 h-4 text-sky-500" />
+            <div key={channel.channel_id} className="relative group">
+              <button
+                onClick={() => toggleChannel(channel.channel_id)}
+                className={clsx(
+                  'w-full flex items-center gap-3 p-2 rounded-lg transition-all',
+                  selectedChannels.includes(channel.channel_id)
+                    ? 'bg-primary/20 text-foreground'
+                    : 'hover:bg-secondary text-muted-foreground'
                 )}
-              </div>
-              <span className="text-sm truncate flex-1 text-left">{channel.name}</span>
-              {channel.isSelected && (
-                <div className="w-2 h-2 rounded-full bg-green-500" />
-              )}
-            </button>
+              >
+                <div className={clsx(
+                  'w-8 h-8 rounded-full flex items-center justify-center',
+                  selectedChannels.includes(channel.channel_id) ? 'bg-primary/20' : 'bg-secondary'
+                )}>
+                  <Send className="w-4 h-4 text-blue-400" />
+                </div>
+                <div className="flex-1 text-left min-w-0">
+                  <div className="text-sm truncate">{channel.name}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {formatNumber(channel.subscribers)}
+                  </div>
+                </div>
+                {selectedChannels.includes(channel.channel_id) && (
+                  <Check className="w-4 h-4 text-primary" />
+                )}
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  removeChannel(channel.channel_id)
+                }}
+                className="absolute top-1 right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Удалить канал"
+              >
+                <X className="w-3 h-3 text-white" />
+              </button>
+            </div>
           ))}
 
-          {/* Add more link */}
-          <Link
-            href="/integrations"
+          <button
+            onClick={() => setShowAddModal(true)}
             className="w-full flex items-center gap-3 p-2 rounded-lg text-muted-foreground hover:text-primary transition-colors"
           >
             <Plus className="w-4 h-4" />
             <span className="text-sm">Добавить</span>
-          </Link>
+          </button>
         </div>
       )}
 
-      {/* Quick Add Modal */}
       {showAddModal && (
-        <AddChannelModal onClose={() => setShowAddModal(false)} />
+        <AddChannelModal
+          onClose={() => setShowAddModal(false)}
+          onChannelAdded={handleChannelAdded}
+        />
       )}
     </div>
   )
 }
 
-function AddChannelModal({ onClose }: { onClose: () => void }) {
+function AddChannelModal({
+  onClose,
+  onChannelAdded,
+}: {
+  onClose: () => void
+  onChannelAdded: (channel: UserChannel) => void
+}) {
+  const [channelInput, setChannelInput] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const addChannel = async () => {
+    if (!channelInput.trim()) return
+
+    setLoading(true)
+    setError('')
+
+    try {
+      const response = await userChannelsApi.add(channelInput)
+      if (response.data.valid && response.data.channel_info) {
+        onChannelAdded(response.data.channel_info)
+      } else {
+        setError(response.data.error || 'Не удалось добавить канал')
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Ошибка добавления канала')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
       <div className="bg-card rounded-xl p-6 w-96 border border-border shadow-2xl">
@@ -143,42 +204,61 @@ function AddChannelModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        <div className="space-y-3">
-          <Link
-            href="/integrations"
-            onClick={onClose}
-            className="w-full flex items-center gap-3 p-4 rounded-lg border border-border hover:border-primary/50 hover:bg-secondary transition-all"
-          >
-            <div className="w-10 h-10 rounded-lg bg-blue-400/10 flex items-center justify-center">
-              <Send className="w-5 h-5 text-blue-400" />
-            </div>
-            <div className="text-left">
-              <div className="font-medium">Telegram</div>
-              <div className="text-xs text-muted-foreground">Канал или группа</div>
-            </div>
-          </Link>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Telegram канал
+            </label>
+            <input
+              type="text"
+              placeholder="@username или ссылка"
+              value={channelInput}
+              onChange={(e) => setChannelInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && addChannel()}
+              className="w-full bg-input rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary"
+              autoFocus
+            />
+            <p className="text-xs text-muted-foreground mt-2">
+              Бот @Yadro888_bot должен быть администратором канала
+            </p>
+          </div>
 
-          <Link
-            href="/integrations"
-            onClick={onClose}
-            className="w-full flex items-center gap-3 p-4 rounded-lg border border-border hover:border-primary/50 hover:bg-secondary transition-all"
-          >
-            <div className="w-10 h-10 rounded-lg bg-sky-500/10 flex items-center justify-center">
-              <MessageCircle className="w-5 h-5 text-sky-500" />
+          {error && (
+            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
+              {error}
             </div>
-            <div className="text-left">
-              <div className="font-medium">VK</div>
-              <div className="text-xs text-muted-foreground">Сообщество</div>
-            </div>
-          </Link>
+          )}
+
+          <div className="bg-secondary/50 rounded-lg p-4 text-sm">
+            <div className="font-medium mb-2">Как добавить бота:</div>
+            <ol className="list-decimal list-inside space-y-1 text-muted-foreground text-xs">
+              <li>Откройте настройки канала</li>
+              <li>Администраторы → Добавить</li>
+              <li>Найдите @Yadro888_bot</li>
+              <li>Дайте права "Публикация сообщений"</li>
+            </ol>
+          </div>
         </div>
 
-        <button
-          onClick={onClose}
-          className="mt-4 w-full py-2 text-muted-foreground hover:text-foreground transition-colors"
-        >
-          Отмена
-        </button>
+        <div className="flex gap-3 mt-6">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Отмена
+          </button>
+          <button
+            onClick={addChannel}
+            disabled={loading || !channelInput.trim()}
+            className="flex-1 py-2 btn-core text-white rounded-lg disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              'Добавить'
+            )}
+          </button>
+        </div>
       </div>
     </div>
   )
