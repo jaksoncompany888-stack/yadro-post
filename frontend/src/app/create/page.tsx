@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Send,
@@ -27,7 +27,7 @@ interface UserChannel {
   can_post: boolean
 }
 
-export default function CreatePostPage() {
+function CreatePostPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [channels, setChannels] = useState<UserChannel[]>([])
@@ -536,5 +536,13 @@ export default function CreatePostPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function CreatePostPageWrapper() {
+  return (
+    <Suspense fallback={<div className="h-full flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin" /></div>}>
+      <CreatePostPage />
+    </Suspense>
   )
 }
