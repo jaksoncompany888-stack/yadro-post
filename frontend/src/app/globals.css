@@ -1,0 +1,218 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 🌍 YADRO — Earth Core Theme */
+
+@layer base {
+  /* Тёмная тема (по умолчанию) */
+  :root {
+    --background: 13 10 8;
+    --foreground: 255 245 238;
+    --card: 21 18 16;
+    --card-foreground: 255 245 238;
+    --primary: 232 90 36;
+    --primary-foreground: 255 255 255;
+    --secondary: 42 35 32;
+    --secondary-foreground: 255 245 238;
+    --muted: 42 35 32;
+    --muted-foreground: 168 144 128;
+    --accent: 255 69 0;
+    --accent-foreground: 255 255 255;
+    --border: 42 33 24;
+    --input: 31 26 22;
+    --ring: 232 90 36;
+  }
+
+  /* Светлая тема */
+  .light {
+    --background: 245 240 235;
+    --foreground: 26 21 18;
+    --card: 255 255 255;
+    --card-foreground: 26 21 18;
+    --primary: 232 90 36;
+    --primary-foreground: 255 255 255;
+    --secondary: 232 225 218;
+    --secondary-foreground: 26 21 18;
+    --muted: 232 225 218;
+    --muted-foreground: 120 113 108;
+    --accent: 255 69 0;
+    --accent-foreground: 255 255 255;
+    --border: 214 204 194;
+    --input: 245 240 235;
+    --ring: 232 90 36;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-card;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-secondary rounded;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-muted-foreground/30;
+}
+
+/* Calendar grid */
+.calendar-grid {
+  display: grid;
+  grid-template-columns: 80px repeat(7, 1fr);
+  gap: 1px;
+  @apply bg-border;
+}
+
+.calendar-cell {
+  @apply bg-card;
+  min-height: 60px;
+  padding: 4px;
+  transition: background 0.2s ease;
+}
+
+.calendar-cell:hover {
+  @apply bg-secondary;
+}
+
+/* Gradient backgrounds — Earth Core */
+.gradient-core {
+  background: linear-gradient(135deg, #fbbf24 0%, #f97316 25%, #e85a24 50%, #dc2626 75%, #991b1b 100%);
+}
+
+.gradient-magma {
+  background: linear-gradient(180deg, #ff4500 0%, #dc2626 50%, #7c2d12 100%);
+}
+
+.gradient-ember {
+  background: linear-gradient(135deg, #f97316 0%, #dc2626 100%);
+}
+
+.gradient-gold {
+  background: linear-gradient(135deg, #fbbf24 0%, #f97316 100%);
+}
+
+/* Обратная совместимость */
+.gradient-purple {
+  background: linear-gradient(135deg, #f97316 0%, #dc2626 100%);
+}
+
+.gradient-blue {
+  background: linear-gradient(135deg, #fbbf24 0%, #e85a24 100%);
+}
+
+/* Glass effect */
+.glass {
+  @apply bg-card/85 backdrop-blur-xl border border-border;
+}
+
+/* Glowing effects */
+.glow-core {
+  box-shadow: 0 0 20px rgba(232, 90, 36, 0.3);
+}
+
+.glow-magma {
+  box-shadow: 0 0 30px rgba(255, 69, 0, 0.4);
+}
+
+/* Button styles */
+.btn-core {
+  @apply bg-primary text-primary-foreground font-medium;
+  transition: all 0.2s ease;
+}
+
+.btn-core:hover {
+  @apply bg-orange-500;
+  box-shadow: 0 0 20px rgba(232, 90, 36, 0.4);
+}
+
+.btn-core:disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
+
+/* AI button special */
+.btn-ai {
+  background: linear-gradient(135deg, #ff4500 0%, #dc2626 100%);
+  @apply text-white font-medium;
+  transition: all 0.3s ease;
+}
+
+.btn-ai:hover {
+  box-shadow: 0 0 25px rgba(255, 69, 0, 0.5);
+  transform: translateY(-1px);
+}
+
+/* Убедимся что primary кнопки видны в обеих темах */
+.bg-primary {
+  background-color: rgb(var(--primary)) !important;
+}
+
+.text-primary {
+  color: rgb(var(--primary)) !important;
+}
+
+.text-primary-foreground {
+  color: rgb(var(--primary-foreground)) !important;
+}
+
+.bg-secondary {
+  background-color: rgb(var(--secondary)) !important;
+}
+
+.text-secondary-foreground {
+  color: rgb(var(--secondary-foreground)) !important;
+}
+
+.bg-card {
+  background-color: rgb(var(--card)) !important;
+}
+
+.text-card-foreground {
+  color: rgb(var(--card-foreground)) !important;
+}
+
+.bg-background {
+  background-color: rgb(var(--background)) !important;
+}
+
+.text-foreground {
+  color: rgb(var(--foreground)) !important;
+}
+
+.text-muted-foreground {
+  color: rgb(var(--muted-foreground)) !important;
+}
+
+.border-border {
+  border-color: rgb(var(--border)) !important;
+}
+
+.bg-input {
+  background-color: rgb(var(--input)) !important;
+}
+
+/* Focus ring */
+.ring-primary {
+  --tw-ring-color: rgb(var(--primary)) !important;
+}
+
+.focus\:ring-primary:focus {
+  --tw-ring-color: rgb(var(--primary)) !important;
+}
