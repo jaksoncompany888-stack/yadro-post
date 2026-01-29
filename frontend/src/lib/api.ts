@@ -26,20 +26,26 @@ export const postsApi = {
   publish: (id: string) => api.post(`/api/posts/${id}/publish`),
 }
 
+// Анализ конкурентов
 export const channelsApi = {
   list: () => api.get('/api/channels'),
   get: (id: string) => api.get(`/api/channels/${id}`),
   create: (data: any) => api.post('/api/channels', data),
   delete: (id: string) => api.delete(`/api/channels/${id}`),
-  // Новые методы для анализа каналов
   analyze: (channel: string, limit?: number) =>
     api.post('/api/channels/analyze', { channel, limit: limit || 10 }),
   add: (channel: string) => api.post('/api/channels/add', { channel }),
   remove: (username: string) => api.delete(`/api/channels/${username}`),
-  // Legacy методы
-  connectTelegram: (code: string) => api.post('/api/channels/telegram/connect', { code }),
-  connectVK: (token: string, groupId: string) =>
-    api.post('/api/channels/vk/connect', { access_token: token, group_id: groupId }),
+}
+
+// Мои каналы для постинга
+export const userChannelsApi = {
+  list: () => api.get('/api/user-channels'),
+  add: (channelId: string, platform: string = 'telegram') =>
+    api.post('/api/user-channels/add', { channel_id: channelId, platform }),
+  remove: (channelId: string) => api.delete(`/api/user-channels/${encodeURIComponent(channelId)}`),
+  validate: (channelId: string, platform: string = 'telegram') =>
+    api.post('/api/user-channels/validate', { channel_id: channelId, platform }),
 }
 
 export const calendarApi = {

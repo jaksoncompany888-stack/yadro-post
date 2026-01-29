@@ -14,6 +14,7 @@ import {
   Zap,
   Sun,
   Moon,
+  Plus,
 } from 'lucide-react'
 
 const navigation = [
@@ -54,10 +55,18 @@ export function Sidebar() {
   return (
     <aside className="w-20 bg-card border-r border-border flex flex-col items-center py-4">
       {/* Logo — Earth Core gradient */}
-      <Link href="/" className="mb-8">
+      <Link href="/" className="mb-4">
         <div className="w-10 h-10 rounded-xl gradient-ember flex items-center justify-center text-white font-bold text-lg shadow-lg glow-core">
           Я
         </div>
+      </Link>
+
+      {/* Create Post Button */}
+      <Link
+        href="/create"
+        className="w-14 h-10 mb-6 rounded-xl btn-core text-white flex items-center justify-center gap-1 shadow-lg hover:scale-105 transition-transform"
+      >
+        <Plus className="w-5 h-5" />
       </Link>
 
       {/* Navigation */}
