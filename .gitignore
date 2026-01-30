@@ -34,5 +34,11 @@ logs/
 *.db
 *.sqlite
 
+# Backend data
+backend/data/snapshots/
+backend/data/outputs/
+!backend/data/snapshots/.gitkeep
+!backend/data/outputs/.gitkeep
+
 # Docker
 docker-compose.override.yaml
