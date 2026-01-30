@@ -1,0 +1,26 @@
+# Минимальные зависимости для запуска на Windows
+# Установка: pip install -r requirements-minimal.txt
+
+# Core (ОБЯЗАТЕЛЬНО) - совместимые версии
+fastapi==0.109.0
+uvicorn==0.27.0
+
+# Database (ОБЯЗАТЕЛЬНО)
+sqlalchemy==2.0.23
+asyncpg==0.29.0
+
+# Auth (ОБЯЗАТЕЛЬНО)
+PyJWT==2.8.0
+passlib==1.7.4
+bcrypt==4.1.1
+
+# Utilities (ОБЯЗАТЕЛЬНО)
+python-dotenv==1.0.0
+httpx==0.25.2
+pydantic==2.5.0
+
+# Опционально (можно установить позже)
+# anthropic==0.7.0          # Для AI генерации
+# python-telegram-bot==20.7  # Для Telegram
+# vk-api==11.9.9             # Для VK
+# apscheduler==3.10.4        # Для автопостинга
