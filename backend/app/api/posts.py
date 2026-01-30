@@ -326,7 +326,8 @@ async def publish_post(
         raise HTTPException(status_code=400, detail="Already published")
 
     post = _row_to_post(row)
-    metadata = json.loads(row.get("metadata") or "{}")
+    row_dict = dict(row)
+    metadata = json.loads(row_dict.get("metadata") or "{}")
 
     # Initialize provider
     bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")

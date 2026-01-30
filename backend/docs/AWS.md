@@ -1,66 +1,110 @@
-# AWS Server Access - Yadro SMM
+# AWS Server — Ядро Post
+
+**Последнее обновление:** 30 января 2026
 
 ## Сервер
 
-- **Провайдер**: AWS (Amazon Web Services)
-- **IP**: 35.156.188.57
-- **Instance type**: t2.micro (1GB RAM)
-- **OS**: Ubuntu 24.04
-- **Region**: eu-central-1 (Frankfurt)
+| Параметр | Значение |
+|----------|----------|
+| **IP** | 35.156.188.57 |
+| **URL** | http://35.156.188.57 |
+| **Instance** | t2.micro (1GB RAM) |
+| **OS** | Ubuntu 24.04 |
+| **Region** | eu-central-1 (Frankfurt) |
 
 ## SSH
 
 ```bash
-ssh -i /Users/mac/Desktop/yadro-key.pem ubuntu@35.156.188.57
+ssh -i ~/Desktop/yadro-key.pem ubuntu@35.156.188.57
 ```
 
-**Пользователь**: `ubuntu` (НЕ ec2-user!)
+**Ключ:** `~/Desktop/yadro-key.pem`
+**Пользователь:** `ubuntu`
 
-## Ключ
+## Сервисы
 
-- **Путь**: `/Users/mac/Desktop/yadro-key.pem`
-- **Права**: `chmod 400 /Users/mac/Desktop/yadro-key.pem`
+| Сервис | Порт | Управление |
+|--------|------|------------|
+| Backend API | 8000 | `systemctl restart yadro-api` |
+| Frontend | 3000 | `pm2 restart yadro-post-frontend` |
+| Nginx | 80 | `systemctl restart nginx` |
 
-## Бэкенд
+## Пути на сервере
 
-Запускается через `run_all.py` (НЕ systemd):
+```
+/home/ubuntu/yadro-post/
+├── backend/           # FastAPI + Ядро SMM
+│   ├── app/
+│   ├── data/smm.db    # SQLite база
+│   └── venv/          # Python virtualenv
+└── frontend/          # Next.js
+    └── .next/         # Build
+```
 
+## Команды
+
+### Backend
 ```bash
-# Перезапуск бэкенда
-cd /home/ubuntu/yadro-smm
-pkill -9 -f run_all.py
-source venv/bin/activate
-nohup python run_all.py > /tmp/yadro.log 2>&1 &
+# Статус
+sudo systemctl status yadro-api
 
-# Проверить статус
-ps aux | grep run_all
-curl localhost:8000/health
+# Перезапуск
+sudo systemctl restart yadro-api
 
 # Логи
-tail -f /tmp/yadro.log
+sudo journalctl -u yadro-api -f
+
+# Health check
+curl localhost:8000/health
 ```
 
-## Фронтенд (PM2)
-
+### Frontend
 ```bash
-pm2 list
+# Статус
+pm2 status
+
+# Перезапуск
 pm2 restart yadro-post-frontend
+
+# Логи
 pm2 logs yadro-post-frontend
+
+# Rebuild
+cd /home/ubuntu/yadro-post/frontend
+rm -rf .next && npm run build
+pm2 restart yadro-post-frontend
+```
+
+### Nginx
+```bash
+# Конфиг
+sudo nano /etc/nginx/sites-available/yadro
+
+# Проверить
+sudo nginx -t
+
+# Перезапуск
+sudo systemctl restart nginx
 ```
 
 ## Деплой
 
-### Бэкенд
+### С локальной машины
 ```bash
-cd /home/ubuntu/yadro-smm
-git pull
-pkill -9 -f run_all.py
-source venv/bin/activate
-nohup python run_all.py > /tmp/yadro.log 2>&1 &
+cd ~/Desktop/yadro-post
+./deploy.sh
 ```
 
-### Фронтенд
+### Вручную на сервере
 ```bash
+# Backend
+cd /home/ubuntu/yadro-post/backend
+git pull
+source venv/bin/activate
+pip install -r requirements.txt
+sudo systemctl restart yadro-api
+
+# Frontend
 cd /home/ubuntu/yadro-post/frontend
 git pull
 npm install
@@ -68,35 +112,32 @@ npm run build
 pm2 restart yadro-post-frontend
 ```
 
-## Память
+## Локальные пути (Mac)
 
-Swap настроен (~1.8GB). Проверка:
+| Что | Путь |
+|----|------|
+| Проект | `~/Desktop/yadro-post` |
+| SSH ключ | `~/Desktop/yadro-key.pem` |
+
+## Если не работает
+
+1. **502 Bad Gateway** — backend упал
+   ```bash
+   sudo systemctl restart yadro-api
+   ```
+
+2. **ChunkLoadError** — старый кэш фронтенда
+   ```bash
+   cd /home/ubuntu/yadro-post/frontend
+   rm -rf .next && npm run build
+   pm2 restart yadro-post-frontend
+   ```
+
+3. **Сервер не отвечает** — AWS Console → EC2 → Reboot
+
+## Swap
+
+Настроен 1.8GB. Проверка:
 ```bash
 free -h
 ```
-
-## Если сервер не отвечает
-
-1. AWS Console → EC2 → Instances
-2. Выбрать инстанс
-3. Actions → Instance State → Reboot
-
-## Пути на сервере
-
-- Backend: `/home/ubuntu/yadro-smm`
-- Frontend: `/home/ubuntu/yadro-post/frontend`
-- Nginx: `/etc/nginx/sites-available/yadro`
-- Backend logs: `/tmp/yadro.log`
-
-## Локальные пути (Mac)
-
-- Backend: `/Users/mac/Desktop/yadro-smm`
-- Frontend: `/Users/mac/Desktop/yadro-post`
-- SSH ключ: `/Users/mac/Desktop/yadro-key.pem`
-- Postiz (референс): `/Users/mac/Desktop/postiz-ref`
-
-## ВАЖНО
-
-- IP: **35.156.188.57** (AWS Frankfurt)
-- Это НЕ Яндекс Облако!
-- Пользователь: **ubuntu**

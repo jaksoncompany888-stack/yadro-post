@@ -153,7 +153,7 @@ cp .env.example .env
 docker compose up -d
 
 # 4. Открыть
-open http://localhost:3000
+open http://35.156.188.57
 ```
 
 ---
@@ -266,7 +266,7 @@ primary: {
 
 ## Демо для клиентов
 
-Проект запущен локально: http://localhost:3000
+Проект запущен локально: http://35.156.188.57
 
 Для демо на продакшене:
 1. Развернуть на VPS (DigitalOcean, Hetzner)
