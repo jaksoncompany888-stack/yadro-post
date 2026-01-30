@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { User, Bell, Globe, Key, Palette } from 'lucide-react'
+import { User, Bell, Globe, Palette } from 'lucide-react'
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('profile')
@@ -10,7 +10,6 @@ export default function SettingsPage() {
     { id: 'profile', label: 'Профиль', icon: User },
     { id: 'notifications', label: 'Уведомления', icon: Bell },
     { id: 'language', label: 'Язык', icon: Globe },
-    { id: 'api', label: 'API ключи', icon: Key },
     { id: 'appearance', label: 'Внешний вид', icon: Palette },
   ]
 
@@ -97,41 +96,6 @@ export default function SettingsPage() {
                 <option value="ru">Русский</option>
                 <option value="en">English</option>
               </select>
-            </div>
-          )}
-
-          {activeTab === 'api' && (
-            <div>
-              <h2 className="text-lg font-medium mb-4">API ключи</h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm text-muted-foreground mb-2">Anthropic API Key</label>
-                  <input
-                    type="password"
-                    placeholder="sk-ant-api03-..."
-                    className="w-full bg-secondary rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-muted-foreground mb-2">Telegram Bot Token</label>
-                  <input
-                    type="password"
-                    placeholder="123456789:AABBcc..."
-                    className="w-full bg-secondary rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-muted-foreground mb-2">VK Token</label>
-                  <input
-                    type="password"
-                    placeholder="vk1.a.xxx..."
-                    className="w-full bg-secondary rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-                <button className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors">
-                  Сохранить ключи
-                </button>
-              </div>
             </div>
           )}
 
