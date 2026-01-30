@@ -93,9 +93,9 @@ pm2 restart yadro-web       # Рестарт фронтенда
 ## Переменные окружения (на сервере в .env)
 
 ```env
-TELEGRAM_BOT_TOKEN=8499179297:AAFDb...
-ANTHROPIC_API_KEY=sk-ant-api03-uvD7C1m...
-OPENAI_API_KEY=sk-proj-...
+TELEGRAM_BOT_TOKEN=your-bot-token
+ANTHROPIC_API_KEY=your-anthropic-key
+OPENAI_API_KEY=your-openai-key
 ```
 
 ## Архитектура генерации постов

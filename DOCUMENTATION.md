@@ -116,16 +116,16 @@ yadro-post/
 
 ```bash
 # Security
-SECRET_KEY=yadro-post-secret-key-2024
+SECRET_KEY=your-secret-key
 
 # AI
-ANTHROPIC_API_KEY=sk-ant-api03-...
+ANTHROPIC_API_KEY=your-anthropic-key
 
 # Telegram Bot
-TELEGRAM_TOKEN=8097085611:AAFxhPKq...
+TELEGRAM_TOKEN=your-telegram-token
 
 # VK API
-VK_TOKEN=
+VK_TOKEN=your-vk-token
 ```
 
 ### Порты
