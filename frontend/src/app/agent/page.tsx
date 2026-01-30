@@ -165,8 +165,7 @@ export default function AgentPage() {
     setSavingToDraft(messageId)
     try {
       await draftsApi.create({
-        content,
-        platform: 'telegram',
+        text: content,
       })
       // Show success briefly
       setTimeout(() => setSavingToDraft(null), 1500)
