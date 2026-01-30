@@ -138,7 +138,7 @@ export function Calendar() {
 
   // Получить посты для конкретной даты с фильтрацией
   const getPostsForDate = (date: Date): Post[] => {
-    if (!calendarData) return []
+    if (!calendarData || !calendarData.days) return []
     const dateStr = format(date, 'yyyy-MM-dd')
     const dayData = calendarData.days.find(d => d.date === dateStr)
     let posts = dayData?.posts || []
@@ -418,12 +418,11 @@ export function Calendar() {
             {hours.map((hour) => {
               const hourPosts = getPostsForTime(currentDate, hour)
               return (
-                <>
-                  <div key={`time-${hour}`} className="calendar-cell text-right pr-2 text-xs text-muted-foreground">
+                <div key={`row-${hour}`} className="contents">
+                  <div className="calendar-cell text-right pr-2 text-xs text-muted-foreground">
                     {hour.toString().padStart(2, '0')}:00
                   </div>
                   <div
-                    key={`cell-${hour}`}
                     className="calendar-cell group relative hover:bg-secondary/50 transition-colors min-h-[60px]"
                   >
                     {hourPosts.length > 0 ? (
@@ -441,7 +440,7 @@ export function Calendar() {
                       </button>
                     )}
                   </div>
-                </>
+                </div>
               )
             })}
           </div>
@@ -481,8 +480,8 @@ export function Calendar() {
 
             {/* Time rows */}
             {hours.map((hour) => (
-              <>
-                <div key={`time-${hour}`} className="calendar-cell text-right pr-2 text-xs text-muted-foreground">
+              <div key={`row-${hour}`} className="contents">
+                <div className="calendar-cell text-right pr-2 text-xs text-muted-foreground">
                   {hour.toString().padStart(2, '0')}:00
                 </div>
                 {weekDays.map((day, dayIndex) => {
@@ -509,7 +508,7 @@ export function Calendar() {
                     </div>
                   )
                 })}
-              </>
+              </div>
             ))}
           </div>
         )}
