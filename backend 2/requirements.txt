@@ -1,0 +1,36 @@
+# Yadro Post Unified - Backend Dependencies
+# Совместимые версии для Windows
+
+# Core
+fastapi==0.109.0
+uvicorn==0.27.0
+python-multipart==0.0.6
+pydantic==2.5.0
+
+# Database
+sqlalchemy==2.0.23
+asyncpg==0.29.0
+alembic==1.12.1
+
+# Auth
+PyJWT==2.8.0
+passlib==1.7.4
+bcrypt==4.1.1
+
+# AI
+anthropic==0.7.0
+httpx==0.25.2
+
+# Telegram
+python-telegram-bot==20.7
+
+# VK
+vk-api==11.9.9
+requests==2.31.0
+
+# Scheduler
+apscheduler==3.10.4
+
+# Utilities
+python-dotenv==1.0.0
+aiofiles==23.2.1
