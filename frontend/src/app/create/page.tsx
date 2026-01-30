@@ -63,6 +63,8 @@ function CreatePostPage() {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [selectionStart, setSelectionStart] = useState(0)
   const [selectionEnd, setSelectionEnd] = useState(0)
+  const [editingDraftId, setEditingDraftId] = useState<number | null>(null)
+  const [loadingDraft, setLoadingDraft] = useState(false)
 
   // Режим: пост или заметка
   const isNoteMode = searchParams.get('type') === 'note'
@@ -72,6 +74,7 @@ function CreatePostPage() {
     const textParam = searchParams.get('text')
     const dateParam = searchParams.get('date')
     const timeParam = searchParams.get('time')
+    const editParam = searchParams.get('edit')
 
     if (textParam) {
       setContent(textParam)
@@ -83,7 +86,32 @@ function CreatePostPage() {
     if (timeParam) {
       setScheduleTime(timeParam)
     }
+
+    // Load draft for editing
+    if (editParam) {
+      const draftId = parseInt(editParam)
+      if (!isNaN(draftId)) {
+        setEditingDraftId(draftId)
+        loadDraftForEdit(draftId)
+      }
+    }
   }, [searchParams])
+
+  const loadDraftForEdit = async (draftId: number) => {
+    setLoadingDraft(true)
+    try {
+      const response = await postsApi.get(draftId)
+      const draft = response.data
+      setContent(draft.text || '')
+      setTopic(draft.topic || '')
+      setHasUnsavedChanges(false)
+    } catch (err) {
+      console.error('Failed to load draft:', err)
+      setError('Не удалось загрузить черновик')
+    } finally {
+      setLoadingDraft(false)
+    }
+  }
 
   useEffect(() => {
     loadChannels()
@@ -263,16 +291,29 @@ function CreatePostPage() {
 
     setIsSaving(true)
     try {
-      await postsApi.create({
-        text: content,
-        topic: topic || undefined,
-        platforms: ['telegram'],
-        channel_ids: selectedChannels.length > 0
-          ? { telegram: selectedChannels[0] }
-          : {},
-      })
+      if (editingDraftId) {
+        // Update existing draft
+        await postsApi.update(editingDraftId, {
+          text: content,
+          topic: topic || undefined,
+          platforms: ['telegram'],
+          channel_ids: selectedChannels.length > 0
+            ? { telegram: selectedChannels[0] }
+            : {},
+        })
+      } else {
+        // Create new draft
+        await postsApi.create({
+          text: content,
+          topic: topic || undefined,
+          platforms: ['telegram'],
+          channel_ids: selectedChannels.length > 0
+            ? { telegram: selectedChannels[0] }
+            : {},
+        })
+      }
       setHasUnsavedChanges(false)
-      router.push('/?refresh=' + Date.now())
+      router.push('/drafts?refresh=' + Date.now())
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Ошибка сохранения')
     } finally {
@@ -357,8 +398,9 @@ function CreatePostPage() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <h1 className="text-xl font-semibold">
-            {isNoteMode ? 'Создать заметку' : 'Создать пост'}
+            {isNoteMode ? 'Создать заметку' : editingDraftId ? 'Редактировать черновик' : 'Создать пост'}
           </h1>
+          {loadingDraft && <Loader2 className="w-5 h-5 animate-spin text-primary" />}
         </div>
 
         {/* Channel selection - только для постов */}
@@ -405,10 +447,10 @@ function CreatePostPage() {
 
               {channels.length === 0 && !loadingChannels && (
                 <a
-                  href="/settings"
+                  href="/"
                   className="flex items-center gap-2 px-3 py-2 rounded-full border-2 border-dashed border-border hover:border-primary/50 transition-colors text-sm text-muted-foreground"
                 >
-                  Добавьте каналы в настройках
+                  Добавьте каналы через «Мои ресурсы» на главной
                 </a>
               )}
             </div>

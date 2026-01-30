@@ -2,16 +2,26 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Send, Loader2, CheckCircle, AlertCircle } from 'lucide-react'
+import { Send, Loader2, CheckCircle, AlertCircle, Mail, Lock, User, Eye, EyeOff } from 'lucide-react'
 import { authApi } from '@/lib/api'
 
+type AuthMode = 'login' | 'register'
 type AuthState = 'idle' | 'loading' | 'success' | 'error'
 
 export default function LoginPage() {
   const router = useRouter()
+  const [mode, setMode] = useState<AuthMode>('login')
   const [authState, setAuthState] = useState<AuthState>('idle')
   const [error, setError] = useState<string | null>(null)
+  const [showPassword, setShowPassword] = useState(false)
   const [botUsername, setBotUsername] = useState<string>('YadroPostBot')
+
+  // Form fields
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
 
   // Check if already logged in
   useEffect(() => {
@@ -21,7 +31,7 @@ export default function LoginPage() {
     }
   }, [router])
 
-  // Load bot config
+  // Load bot config for Telegram widget
   useEffect(() => {
     authApi.getTelegramConfig()
       .then((res) => {
@@ -31,6 +41,62 @@ export default function LoginPage() {
         // Use default
       })
   }, [])
+
+  // Handle email login
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    setAuthState('loading')
+
+    try {
+      const res = await authApi.login({ email, password })
+      localStorage.setItem('token', res.data.token)
+      localStorage.setItem('user', JSON.stringify(res.data.user))
+      setAuthState('success')
+      setTimeout(() => router.push('/'), 1000)
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Ошибка входа')
+      setAuthState('error')
+    }
+  }
+
+  // Handle email registration
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+
+    // Validation
+    if (password !== confirmPassword) {
+      setError('Пароли не совпадают')
+      return
+    }
+    if (password.length < 6) {
+      setError('Пароль должен быть минимум 6 символов')
+      return
+    }
+    if (!firstName.trim()) {
+      setError('Введите имя')
+      return
+    }
+
+    setAuthState('loading')
+
+    try {
+      const res = await authApi.register({
+        email,
+        password,
+        first_name: firstName,
+        last_name: lastName || undefined,
+      })
+      localStorage.setItem('token', res.data.token)
+      localStorage.setItem('user', JSON.stringify(res.data.user))
+      setAuthState('success')
+      setTimeout(() => router.push('/'), 1000)
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Ошибка регистрации')
+      setAuthState('error')
+    }
+  }
 
   // Handle Telegram Login Widget callback
   const handleTelegramAuth = useCallback(async (user: any) => {
@@ -48,47 +114,49 @@ export default function LoginPage() {
         hash: user.hash,
       })
 
-      // Save token and user
       localStorage.setItem('token', res.data.token)
       localStorage.setItem('user', JSON.stringify(res.data.user))
-
       setAuthState('success')
-
-      // Redirect after short delay
-      setTimeout(() => {
-        router.push('/')
-      }, 1000)
+      setTimeout(() => router.push('/'), 1000)
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Ошибка авторизации')
+      setError(err.response?.data?.detail || 'Ошибка авторизации через Telegram')
       setAuthState('error')
     }
   }, [router])
 
   // Load Telegram Login Widget script
   useEffect(() => {
-    // Make callback available globally
     ;(window as any).onTelegramAuth = handleTelegramAuth
 
-    // Load Telegram widget script
-    const script = document.createElement('script')
-    script.src = 'https://telegram.org/js/telegram-widget.js?22'
-    script.async = true
-    script.setAttribute('data-telegram-login', botUsername)
-    script.setAttribute('data-size', 'large')
-    script.setAttribute('data-radius', '12')
-    script.setAttribute('data-onauth', 'onTelegramAuth(user)')
-    script.setAttribute('data-request-access', 'write')
-
-    const container = document.getElementById('telegram-login-container')
-    if (container) {
-      container.innerHTML = ''
-      container.appendChild(script)
+    const loadTelegramWidget = () => {
+      const container = document.getElementById('telegram-login-container')
+      if (container) {
+        container.innerHTML = ''
+        const script = document.createElement('script')
+        script.src = 'https://telegram.org/js/telegram-widget.js?22'
+        script.async = true
+        script.setAttribute('data-telegram-login', botUsername)
+        script.setAttribute('data-size', 'large')
+        script.setAttribute('data-radius', '12')
+        script.setAttribute('data-onauth', 'onTelegramAuth(user)')
+        script.setAttribute('data-request-access', 'write')
+        container.appendChild(script)
+      }
     }
+
+    // Small delay to ensure DOM is ready
+    setTimeout(loadTelegramWidget, 100)
 
     return () => {
       delete (window as any).onTelegramAuth
     }
   }, [botUsername, handleTelegramAuth])
+
+  // Reset error when switching modes
+  useEffect(() => {
+    setError(null)
+    setAuthState('idle')
+  }, [mode])
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -102,81 +170,247 @@ export default function LoginPage() {
           <p className="text-muted-foreground">СММ планировщик с AI</p>
         </div>
 
-        {/* Auth Card */}
-        <div className="bg-card rounded-2xl border border-border p-6 shadow-lg">
-          {/* Idle/Loading State */}
-          {(authState === 'idle' || authState === 'loading') && (
-            <div className="text-center">
-              <div className="w-16 h-16 mx-auto rounded-full bg-[#0088cc]/20 flex items-center justify-center mb-4">
-                {authState === 'loading' ? (
-                  <Loader2 className="w-8 h-8 text-[#0088cc] animate-spin" />
-                ) : (
-                  <Send className="w-8 h-8 text-[#0088cc]" />
-                )}
-              </div>
-              <h2 className="text-xl font-semibold mb-2">Вход через Telegram</h2>
-              <p className="text-muted-foreground text-sm mb-6">
-                Для использования Ядро Post необходимо авторизоваться через Telegram
-              </p>
+        {/* Success State */}
+        {authState === 'success' && (
+          <div className="bg-card rounded-2xl border border-border p-6 shadow-lg text-center">
+            <div className="w-16 h-16 mx-auto rounded-full bg-green-500/20 flex items-center justify-center mb-4">
+              <CheckCircle className="w-8 h-8 text-green-500" />
+            </div>
+            <h2 className="text-xl font-semibold mb-2">Успешно!</h2>
+            <p className="text-muted-foreground text-sm">
+              Перенаправление в приложение...
+            </p>
+          </div>
+        )}
 
-              {/* Telegram Login Widget Container */}
+        {/* Auth Forms */}
+        {authState !== 'success' && (
+          <div className="bg-card rounded-2xl border border-border p-6 shadow-lg">
+            {/* Tabs */}
+            <div className="flex mb-6 bg-secondary rounded-lg p-1">
+              <button
+                onClick={() => setMode('login')}
+                className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                  mode === 'login'
+                    ? 'bg-card text-foreground shadow'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Вход
+              </button>
+              <button
+                onClick={() => setMode('register')}
+                className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                  mode === 'register'
+                    ? 'bg-card text-foreground shadow'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Регистрация
+              </button>
+            </div>
+
+            {/* Login Form */}
+            {mode === 'login' && (
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-2">Email</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="email@example.com"
+                      required
+                      className="w-full pl-10 pr-4 py-3 bg-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-2">Пароль</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      required
+                      className="w-full pl-10 pr-12 py-3 bg-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                {error && (
+                  <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-2 text-red-400 text-sm">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    {error}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={authState === 'loading'}
+                  className="w-full py-3 btn-core text-white rounded-lg font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {authState === 'loading' ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Вход...
+                    </>
+                  ) : (
+                    'Войти'
+                  )}
+                </button>
+              </form>
+            )}
+
+            {/* Register Form */}
+            {mode === 'register' && (
+              <form onSubmit={handleRegister} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-muted-foreground mb-2">Имя *</label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                      <input
+                        type="text"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        placeholder="Иван"
+                        required
+                        className="w-full pl-10 pr-4 py-3 bg-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-muted-foreground mb-2">Фамилия</label>
+                    <input
+                      type="text"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      placeholder="Иванов"
+                      className="w-full px-4 py-3 bg-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-2">Email *</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="email@example.com"
+                      required
+                      className="w-full pl-10 pr-4 py-3 bg-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-2">Пароль *</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Минимум 6 символов"
+                      required
+                      minLength={6}
+                      className="w-full pl-10 pr-12 py-3 bg-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-2">Подтверждение пароля *</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Повторите пароль"
+                      required
+                      className="w-full pl-10 pr-4 py-3 bg-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                </div>
+
+                {error && (
+                  <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-2 text-red-400 text-sm">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    {error}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={authState === 'loading'}
+                  className="w-full py-3 btn-core text-white rounded-lg font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {authState === 'loading' ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Регистрация...
+                    </>
+                  ) : (
+                    'Зарегистрироваться'
+                  )}
+                </button>
+              </form>
+            )}
+
+            {/* Divider */}
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-border"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-card text-muted-foreground">или</span>
+              </div>
+            </div>
+
+            {/* Telegram Login Widget */}
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground mb-4">
+                Войти через Telegram
+              </p>
               <div
                 id="telegram-login-container"
-                className="flex justify-center mb-4"
+                className="flex justify-center"
               >
-                {/* Widget will be inserted here */}
-                <div className="text-muted-foreground text-sm">
+                <div className="text-muted-foreground text-sm flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
                   Загрузка виджета...
                 </div>
               </div>
-
-              {authState === 'loading' && (
-                <p className="text-sm text-muted-foreground">
-                  Авторизация...
-                </p>
-              )}
             </div>
-          )}
-
-          {/* Success State */}
-          {authState === 'success' && (
-            <div className="text-center">
-              <div className="w-16 h-16 mx-auto rounded-full bg-green-500/20 flex items-center justify-center mb-4">
-                <CheckCircle className="w-8 h-8 text-green-500" />
-              </div>
-              <h2 className="text-xl font-semibold mb-2">Успешно!</h2>
-              <p className="text-muted-foreground text-sm">
-                Перенаправление в приложение...
-              </p>
-            </div>
-          )}
-
-          {/* Error State */}
-          {authState === 'error' && (
-            <div className="text-center">
-              <div className="w-16 h-16 mx-auto rounded-full bg-red-500/20 flex items-center justify-center mb-4">
-                <AlertCircle className="w-8 h-8 text-red-500" />
-              </div>
-              <h2 className="text-xl font-semibold mb-2">Ошибка</h2>
-              <p className="text-red-500 text-sm mb-6">{error}</p>
-              <button
-                onClick={() => {
-                  setAuthState('idle')
-                  setError(null)
-                }}
-                className="w-full py-3 px-4 bg-primary hover:bg-primary/90 text-white rounded-xl font-medium"
-              >
-                Попробовать снова
-              </button>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Info */}
         <div className="mt-6 text-center">
-          <p className="text-xs text-muted-foreground mb-2">
-            После входа проверьте подписку на канал <a href="https://t.me/yadro_channel" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">@yadro_channel</a>
-          </p>
           <p className="text-xs text-muted-foreground">
             Продолжая, вы соглашаетесь с условиями использования
           </p>

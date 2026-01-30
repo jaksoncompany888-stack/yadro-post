@@ -28,15 +28,17 @@ async def lifespan(app: FastAPI):
     db = get_db()
     _migrate_drafts_table(db)
     _migrate_users_role(db)
+    _migrate_users_auth(db)
 
-    # Start background scheduler
-    from ..scheduler.background import start_scheduler, stop_scheduler
-    start_scheduler()
+    # DISABLED: Background scheduler for auto-publishing
+    # TODO: включить когда будет готова логика
+    # from ..scheduler.background import start_scheduler, stop_scheduler
+    # start_scheduler()
 
     yield
 
-    # Shutdown: stop scheduler
-    stop_scheduler()
+    # Shutdown
+    # stop_scheduler()
 
 
 def _migrate_drafts_table(db):
@@ -57,6 +59,36 @@ def _migrate_users_role(db):
     except Exception:
         db.execute("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'")
         print("Migration: added role column to users")
+
+
+def _migrate_users_auth(db):
+    """Add email/password columns for email auth."""
+    try:
+        db.execute("SELECT email FROM users LIMIT 1")
+    except Exception:
+        db.execute("ALTER TABLE users ADD COLUMN email TEXT UNIQUE")
+        print("Migration: added email column to users")
+
+    try:
+        db.execute("SELECT password_hash FROM users LIMIT 1")
+    except Exception:
+        db.execute("ALTER TABLE users ADD COLUMN password_hash TEXT")
+        print("Migration: added password_hash column to users")
+
+    try:
+        db.execute("SELECT first_name FROM users LIMIT 1")
+    except Exception:
+        db.execute("ALTER TABLE users ADD COLUMN first_name TEXT")
+        print("Migration: added first_name column to users")
+
+    try:
+        db.execute("SELECT last_name FROM users LIMIT 1")
+    except Exception:
+        db.execute("ALTER TABLE users ADD COLUMN last_name TEXT")
+        print("Migration: added last_name column to users")
+
+    # Make tg_id nullable (was NOT NULL)
+    # SQLite doesn't support ALTER COLUMN, so we skip this for existing DBs
 
 
 def create_app() -> FastAPI:

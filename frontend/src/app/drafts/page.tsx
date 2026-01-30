@@ -163,19 +163,19 @@ export default function DraftsPage() {
                     </div>
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {/* Actions - always visible */}
+                  <div className="flex items-center gap-2">
                     <Link
                       href={`/create?edit=${draft.id}`}
-                      className="p-2 rounded-lg hover:bg-secondary transition-colors"
-                      title="Редактировать"
+                      className="px-3 py-1.5 rounded-lg bg-primary/20 text-primary hover:bg-primary/30 transition-colors text-sm flex items-center gap-1"
                     >
-                      <Edit className="w-4 h-4" />
+                      <Edit className="w-3.5 h-3.5" />
+                      Редактировать
                     </Link>
                     <button
                       onClick={() => deleteDraft(draft.id)}
                       disabled={deleting === draft.id}
-                      className="p-2 rounded-lg hover:bg-red-500/20 text-red-400 transition-colors disabled:opacity-50"
+                      className="p-2 rounded-lg hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-colors disabled:opacity-50"
                       title="Удалить"
                     >
                       {deleting === draft.id ? (

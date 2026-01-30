@@ -19,8 +19,10 @@ import {
   FileText,
   StickyNote,
   Users,
+  LogOut,
 } from 'lucide-react'
-import { usersApi } from '@/lib/api'
+import { useRouter } from 'next/navigation'
+import { usersApi, authApi } from '@/lib/api'
 
 // Роли: admin, smm, user
 type UserRole = 'admin' | 'smm' | 'user'
@@ -54,6 +56,7 @@ const mobileNavigation = [
 
 export function Sidebar() {
   const pathname = usePathname()
+  const router = useRouter()
   const [isDark, setIsDark] = useState(true)
   const [showMobileMenu, setShowMobileMenu] = useState(false)
   const [userRole, setUserRole] = useState<UserRole>('user')
@@ -69,6 +72,12 @@ export function Sidebar() {
         setUserRole('user')
       })
   }, [])
+
+  // Logout handler
+  const handleLogout = () => {
+    authApi.logout()
+    router.push('/login')
+  }
 
   // Filter navigation by user role
   const filteredNavigation = navigation.filter((item) => {
@@ -163,8 +172,18 @@ export function Sidebar() {
           <span className="text-[10px]">Настройки</span>
         </Link>
 
+        {/* Logout */}
+        <button
+          onClick={handleLogout}
+          className="w-14 h-14 rounded-xl flex flex-col items-center justify-center gap-1 transition-all duration-200 text-muted-foreground hover:bg-red-500/10 hover:text-red-400"
+          title="Выйти"
+        >
+          <LogOut className="w-5 h-5" />
+          <span className="text-[10px]">Выйти</span>
+        </button>
+
         {/* Version */}
-        <div className="mt-4 text-xs text-muted-foreground">v1.0.0</div>
+        <div className="mt-2 text-xs text-muted-foreground">v1.0.0</div>
       </aside>
 
       {/* Mobile Bottom Navigation */}
@@ -255,10 +274,22 @@ export function Sidebar() {
             {/* Theme Toggle */}
             <button
               onClick={toggleTheme}
-              className="w-full py-4 bg-secondary rounded-xl flex items-center justify-center gap-3"
+              className="w-full py-4 bg-secondary rounded-xl flex items-center justify-center gap-3 mb-3"
             >
               {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
               <span>{isDark ? 'Светлая тема' : 'Тёмная тема'}</span>
+            </button>
+
+            {/* Logout */}
+            <button
+              onClick={() => {
+                setShowMobileMenu(false)
+                handleLogout()
+              }}
+              className="w-full py-4 bg-red-500/10 text-red-400 rounded-xl flex items-center justify-center gap-3"
+            >
+              <LogOut className="w-5 h-5" />
+              <span>Выйти</span>
             </button>
           </div>
         </div>

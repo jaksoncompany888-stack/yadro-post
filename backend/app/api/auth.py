@@ -1,8 +1,9 @@
 """
-Telegram Authentication API
+Authentication API
 
-Web-only authentication via Telegram Login Widget.
-No Mini App, no bot interaction - pure web auth.
+Supports:
+- Email + password registration and login
+- Telegram Login Widget
 """
 
 import os
@@ -10,13 +11,15 @@ import secrets
 import hashlib
 import hmac
 import json
+import re
 from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Depends, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, validator
 import jwt
 import httpx
+import bcrypt
 
 from app.storage.database import Database
 from .deps import get_db
@@ -69,22 +72,64 @@ class SubscriptionCheckResponse(BaseModel):
     channel: str
 
 
+class RegisterRequest(BaseModel):
+    """Email registration request"""
+    email: str
+    password: str
+    first_name: str
+    last_name: Optional[str] = None
+
+    @validator('email')
+    def validate_email(cls, v):
+        email_regex = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+        if not re.match(email_regex, v):
+            raise ValueError('Invalid email format')
+        return v.lower()
+
+    @validator('password')
+    def validate_password(cls, v):
+        if len(v) < 6:
+            raise ValueError('Password must be at least 6 characters')
+        return v
+
+
+class LoginRequest(BaseModel):
+    """Email login request"""
+    email: str
+    password: str
+
+
 # =============================================================================
 # JWT Helpers
 # =============================================================================
 
-def create_jwt_token(user_id: int, tg_id: int, role: str = "user") -> tuple[str, datetime]:
+def create_jwt_token(user_id: int, tg_id: Optional[int] = None, role: str = "user") -> tuple[str, datetime]:
     """Create JWT token for user."""
     expires = datetime.utcnow() + timedelta(days=JWT_EXPIRE_DAYS)
     payload = {
         "sub": str(user_id),
-        "tg_id": tg_id,
         "role": role,
         "exp": expires,
         "iat": datetime.utcnow(),
     }
+    if tg_id:
+        payload["tg_id"] = tg_id
     token = jwt.encode(payload, SECRET_KEY, algorithm=JWT_ALGORITHM)
     return token, expires
+
+
+# =============================================================================
+# Password Helpers
+# =============================================================================
+
+def hash_password(password: str) -> str:
+    """Hash password using bcrypt."""
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+
+def verify_password(password: str, password_hash: str) -> bool:
+    """Verify password against hash."""
+    return bcrypt.checkpw(password.encode(), password_hash.encode())
 
 
 def verify_jwt_token(token: str) -> Optional[dict]:
@@ -133,7 +178,110 @@ def validate_telegram_widget(data: dict) -> bool:
 
 
 # =============================================================================
-# Endpoints
+# Email Auth Endpoints
+# =============================================================================
+
+@router.post("/register", response_model=AuthResponse)
+async def register(
+    data: RegisterRequest,
+    db: Database = Depends(get_db),
+):
+    """
+    Register new user with email and password.
+    """
+    # Check if email already exists
+    existing = db.fetch_one(
+        "SELECT id FROM users WHERE email = ?",
+        (data.email,)
+    )
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    # Hash password
+    password_hash = hash_password(data.password)
+
+    # Create user (tg_id will be NULL for email users)
+    db.execute(
+        """
+        INSERT INTO users (email, password_hash, first_name, last_name, role, is_active)
+        VALUES (?, ?, ?, ?, 'user', 1)
+        """,
+        (data.email, password_hash, data.first_name, data.last_name)
+    )
+
+    # Get created user
+    user = db.fetch_one(
+        "SELECT id, email, first_name, last_name, role, is_active FROM users WHERE email = ?",
+        (data.email,)
+    )
+
+    # Create token
+    token, expires = create_jwt_token(
+        user_id=user["id"],
+        role=user["role"] or "user",
+    )
+
+    return AuthResponse(
+        token=token,
+        expires_at=expires.isoformat(),
+        user={
+            "id": user["id"],
+            "email": user["email"],
+            "first_name": user["first_name"],
+            "last_name": user["last_name"],
+            "role": user["role"] or "user",
+        },
+    )
+
+
+@router.post("/login", response_model=AuthResponse)
+async def login(
+    data: LoginRequest,
+    db: Database = Depends(get_db),
+):
+    """
+    Login with email and password.
+    """
+    # Find user by email
+    user = db.fetch_one(
+        "SELECT id, email, password_hash, first_name, last_name, role, is_active FROM users WHERE email = ?",
+        (data.email.lower(),)
+    )
+
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    if not user["password_hash"]:
+        raise HTTPException(status_code=401, detail="This account uses Telegram login")
+
+    # Verify password
+    if not verify_password(data.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    if not user["is_active"]:
+        raise HTTPException(status_code=403, detail="Account is deactivated")
+
+    # Create token
+    token, expires = create_jwt_token(
+        user_id=user["id"],
+        role=user["role"] or "user",
+    )
+
+    return AuthResponse(
+        token=token,
+        expires_at=expires.isoformat(),
+        user={
+            "id": user["id"],
+            "email": user["email"],
+            "first_name": user["first_name"],
+            "last_name": user["last_name"],
+            "role": user["role"] or "user",
+        },
+    )
+
+
+# =============================================================================
+# Telegram Auth Endpoints
 # =============================================================================
 
 @router.post("/telegram/login", response_model=AuthResponse)

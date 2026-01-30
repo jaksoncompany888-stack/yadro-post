@@ -19,11 +19,11 @@ api.interceptors.request.use((config) => {
 // API methods
 export const postsApi = {
   list: (params?: { status?: string }) => api.get('/api/posts', { params }),
-  get: (id: string) => api.get(`/api/posts/${id}`),
+  get: (id: number) => api.get(`/api/posts/${id}`),
   create: (data: any) => api.post('/api/posts', data),
-  update: (id: string, data: any) => api.put(`/api/posts/${id}`, data),
+  update: (id: number, data: any) => api.patch(`/api/posts/${id}`, data),
   delete: (id: number) => api.delete(`/api/posts/${id}`),
-  publish: (id: string) => api.post(`/api/posts/${id}/publish`),
+  publish: (id: number) => api.post(`/api/posts/${id}/publish`),
 }
 
 // Заметки
@@ -82,6 +82,18 @@ export const aiApi = {
 }
 
 export const authApi = {
+  // Email registration
+  register: (data: {
+    email: string
+    password: string
+    first_name: string
+    last_name?: string
+  }) => api.post('/api/auth/register', data),
+
+  // Email login
+  login: (data: { email: string; password: string }) =>
+    api.post('/api/auth/login', data),
+
   // Telegram Login Widget
   telegramLogin: (data: {
     id: number

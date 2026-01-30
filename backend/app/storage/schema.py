@@ -15,14 +15,20 @@ SCHEMA_SQL = """
 -- Users table
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    tg_id INTEGER UNIQUE NOT NULL,
+    tg_id INTEGER UNIQUE,
     username TEXT,
+    email TEXT UNIQUE,
+    password_hash TEXT,
+    first_name TEXT,
+    last_name TEXT,
     role TEXT DEFAULT 'user' CHECK(role IN ('admin', 'smm', 'user')),
     is_active INTEGER DEFAULT 1,
     settings TEXT DEFAULT '{}',
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
 );
+
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
 CREATE INDEX IF NOT EXISTS idx_users_tg_id ON users(tg_id);
 
