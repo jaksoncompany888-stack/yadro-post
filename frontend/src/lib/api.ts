@@ -18,12 +18,24 @@ api.interceptors.request.use((config) => {
 
 // API methods
 export const postsApi = {
-  list: () => api.get('/api/posts'),
+  list: (params?: { status?: string }) => api.get('/api/posts', { params }),
   get: (id: string) => api.get(`/api/posts/${id}`),
   create: (data: any) => api.post('/api/posts', data),
   update: (id: string, data: any) => api.put(`/api/posts/${id}`, data),
-  delete: (id: string) => api.delete(`/api/posts/${id}`),
+  delete: (id: number) => api.delete(`/api/posts/${id}`),
   publish: (id: string) => api.post(`/api/posts/${id}/publish`),
+}
+
+// Заметки
+export const notesApi = {
+  list: (params?: { search?: string; pinned_only?: boolean }) =>
+    api.get('/api/notes', { params }),
+  get: (id: number) => api.get(`/api/notes/${id}`),
+  create: (data: { title?: string; content: string; color?: string; is_pinned?: boolean }) =>
+    api.post('/api/notes', data),
+  update: (id: number, data: { title?: string; content?: string; color?: string; is_pinned?: boolean }) =>
+    api.patch(`/api/notes/${id}`, data),
+  delete: (id: number) => api.delete(`/api/notes/${id}`),
 }
 
 // Анализ конкурентов
@@ -70,11 +82,62 @@ export const aiApi = {
 }
 
 export const authApi = {
-  login: (email: string, password: string) =>
-    api.post('/api/auth/login', new URLSearchParams({ username: email, password }), {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    }),
-  register: (data: { email: string; password: string; name?: string }) =>
-    api.post('/api/auth/register', data),
-  me: () => api.get('/api/auth/me'),
+  // Telegram Login Widget
+  telegramLogin: (data: {
+    id: number
+    first_name: string
+    last_name?: string
+    username?: string
+    photo_url?: string
+    auth_date: number
+    hash: string
+  }) => api.post('/api/auth/telegram/login', data),
+
+  // Get Telegram widget config
+  getTelegramConfig: () => api.get('/api/auth/telegram/config'),
+
+  // Get current user from token
+  me: () => {
+    const token = localStorage.getItem('token')
+    return api.get('/api/auth/me', { params: { token } })
+  },
+
+  // Refresh token
+  refresh: () => {
+    const token = localStorage.getItem('token')
+    return api.post('/api/auth/refresh', null, { params: { token } })
+  },
+
+  // Verify channel subscription
+  verifySubscription: () => {
+    const token = localStorage.getItem('token')
+    return api.post('/api/auth/verify-subscription', null, { params: { token } })
+  },
+
+  // Logout
+  logout: () => {
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+    return api.post('/api/auth/logout')
+  },
+}
+
+// Users API (роли и управление пользователями)
+export const usersApi = {
+  me: () => api.get('/api/users/me'),
+  list: (params?: { limit?: number; offset?: number }) =>
+    api.get('/api/users', { params }),
+  updateRole: (userId: number, role: string) =>
+    api.put(`/api/users/${userId}/role`, { role }),
+  activate: (userId: number) =>
+    api.put(`/api/users/${userId}/activate`),
+  deactivate: (userId: number) =>
+    api.put(`/api/users/${userId}/deactivate`),
+}
+
+// Черновики
+export const draftsApi = {
+  list: () => api.get('/api/posts', { params: { status: 'draft' } }),
+  create: (data: { text: string; topic?: string }) =>
+    api.post('/api/posts', { ...data, status: 'draft' }),
 }

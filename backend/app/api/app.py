@@ -15,17 +15,28 @@ from .posts import router as posts_router
 from .calendar import router as calendar_router
 from .channels import router as channels_router
 from .user_channels import router as user_channels_router
+from .notes import router as notes_router
+from .users import router as users_router
+from .auth import router as auth_router
 from .deps import get_db
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
-    # Startup: ensure DB has metadata column
+    # Startup: run migrations
     db = get_db()
     _migrate_drafts_table(db)
+    _migrate_users_role(db)
+
+    # Start background scheduler
+    from ..scheduler.background import start_scheduler, stop_scheduler
+    start_scheduler()
+
     yield
-    # Shutdown: nothing to do
+
+    # Shutdown: stop scheduler
+    stop_scheduler()
 
 
 def _migrate_drafts_table(db):
@@ -37,6 +48,15 @@ def _migrate_drafts_table(db):
         # Add column
         db.execute("ALTER TABLE drafts ADD COLUMN metadata TEXT DEFAULT '{}'")
         print("Migration: added metadata column to drafts")
+
+
+def _migrate_users_role(db):
+    """Add role column to users if not exists."""
+    try:
+        db.execute("SELECT role FROM users LIMIT 1")
+    except Exception:
+        db.execute("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'")
+        print("Migration: added role column to users")
 
 
 def create_app() -> FastAPI:
@@ -65,10 +85,13 @@ def create_app() -> FastAPI:
     )
 
     # Routers
+    app.include_router(auth_router, prefix="/api")
     app.include_router(posts_router, prefix="/api")
     app.include_router(calendar_router, prefix="/api")
     app.include_router(channels_router, prefix="/api")
     app.include_router(user_channels_router, prefix="/api")
+    app.include_router(notes_router, prefix="/api")
+    app.include_router(users_router, prefix="/api")
 
     # Health check
     @app.get("/health")
@@ -82,10 +105,13 @@ def create_app() -> FastAPI:
             "name": "Yadro SMM API",
             "version": "1.0.0",
             "endpoints": {
+                "auth": "/api/auth",
                 "posts": "/api/posts",
                 "calendar": "/api/calendar",
                 "channels": "/api/channels",
                 "user_channels": "/api/user-channels",
+                "notes": "/api/notes",
+                "users": "/api/users",
                 "generate": "/api/posts/generate",
                 "edit": "/api/posts/edit",
                 "analyze": "/api/channels/analyze",

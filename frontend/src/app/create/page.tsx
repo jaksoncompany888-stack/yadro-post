@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, Suspense, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Send,
@@ -10,12 +10,19 @@ import {
   Eye,
   Loader2,
   ChevronDown,
-  Plus,
   Check,
   AlertCircle,
-  X,
+  Bold,
+  Italic,
+  List,
+  ListOrdered,
+  Smile,
+  Link2,
+  Hash,
+  ArrowLeft,
 } from 'lucide-react'
 import { aiApi, postsApi, userChannelsApi } from '@/lib/api'
+import { clsx } from 'clsx'
 
 interface UserChannel {
   platform: string
@@ -27,9 +34,18 @@ interface UserChannel {
   can_post: boolean
 }
 
+// Popular emojis for quick access
+const EMOJI_LIST = [
+  '😀', '😂', '🥹', '😍', '🥰', '😎', '🤔', '😴',
+  '🎉', '🔥', '💯', '❤️', '👍', '👎', '🙏', '💪',
+  '✨', '⭐', '🌟', '💡', '📌', '🎯', '✅', '❌',
+  '📢', '🚀', '💰', '📈', '📊', '🎁', '🏆', '💎',
+]
+
 function CreatePostPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [channels, setChannels] = useState<UserChannel[]>([])
   const [selectedChannels, setSelectedChannels] = useState<string[]>([])
   const [content, setContent] = useState('')
@@ -42,11 +58,16 @@ function CreatePostPage() {
   const [scheduleTime, setScheduleTime] = useState('')
   const [loadingChannels, setLoadingChannels] = useState(true)
   const [error, setError] = useState('')
-  const [showAddChannel, setShowAddChannel] = useState(false)
-  const [newChannelInput, setNewChannelInput] = useState('')
-  const [addingChannel, setAddingChannel] = useState(false)
+  const [showConfirmExit, setShowConfirmExit] = useState(false)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [selectionStart, setSelectionStart] = useState(0)
+  const [selectionEnd, setSelectionEnd] = useState(0)
 
-  // Загрузка параметров из URL
+  // Режим: пост или заметка
+  const isNoteMode = searchParams.get('type') === 'note'
+
+  // Load URL parameters
   useEffect(() => {
     const textParam = searchParams.get('text')
     const dateParam = searchParams.get('date')
@@ -104,33 +125,136 @@ function CreatePostPage() {
     }
   }
 
-  const addChannel = async () => {
-    if (!newChannelInput.trim()) return
-
-    setAddingChannel(true)
-    try {
-      const response = await userChannelsApi.add(newChannelInput)
-      if (response.data.valid && response.data.channel_info) {
-        setChannels((prev) => [...prev, response.data.channel_info])
-        setNewChannelInput('')
-        setShowAddChannel(false)
-      } else {
-        setError(response.data.error || 'Не удалось добавить канал')
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Ошибка добавления канала')
-    } finally {
-      setAddingChannel(false)
+  // Track selection in textarea
+  const handleSelect = () => {
+    if (textareaRef.current) {
+      setSelectionStart(textareaRef.current.selectionStart)
+      setSelectionEnd(textareaRef.current.selectionEnd)
     }
   }
 
-  const removeChannel = async (channelId: string) => {
-    try {
-      await userChannelsApi.remove(channelId)
-      setChannels((prev) => prev.filter((c) => c.channel_id !== channelId))
-      setSelectedChannels((prev) => prev.filter((id) => id !== channelId))
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Ошибка удаления канала')
+  // Insert text at cursor position
+  const insertText = (before: string, after: string = '') => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const selectedText = content.substring(start, end)
+
+    const newText = content.substring(0, start) + before + selectedText + after + content.substring(end)
+    setContent(newText)
+
+    // Set cursor position after insert
+    setTimeout(() => {
+      textarea.focus()
+      const newCursorPos = start + before.length + selectedText.length + after.length
+      textarea.setSelectionRange(
+        selectedText ? newCursorPos : start + before.length,
+        selectedText ? newCursorPos : start + before.length
+      )
+    }, 0)
+  }
+
+  // Format text with markdown
+  const formatBold = () => insertText('**', '**')
+  const formatItalic = () => insertText('_', '_')
+
+  const formatBulletList = () => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const selectedText = content.substring(start, end)
+
+    if (selectedText) {
+      // Format selected lines as list
+      const lines = selectedText.split('\n')
+      const formatted = lines.map(line => line.trim() ? `• ${line}` : line).join('\n')
+      const newText = content.substring(0, start) + formatted + content.substring(end)
+      setContent(newText)
+    } else {
+      // Insert bullet at cursor
+      insertText('• ')
+    }
+  }
+
+  const formatNumberedList = () => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const selectedText = content.substring(start, end)
+
+    if (selectedText) {
+      // Format selected lines as numbered list
+      const lines = selectedText.split('\n')
+      const formatted = lines.map((line, i) => line.trim() ? `${i + 1}. ${line}` : line).join('\n')
+      const newText = content.substring(0, start) + formatted + content.substring(end)
+      setContent(newText)
+    } else {
+      // Insert number at cursor
+      insertText('1. ')
+    }
+  }
+
+  const insertEmoji = (emoji: string) => {
+    insertText(emoji)
+    setShowEmojiPicker(false)
+  }
+
+  const insertHashtag = () => {
+    insertText('#')
+  }
+
+  const insertLink = () => {
+    const url = prompt('Введите URL:')
+    if (url) {
+      const textarea = textareaRef.current
+      if (!textarea) return
+
+      const start = textarea.selectionStart
+      const end = textarea.selectionEnd
+      const selectedText = content.substring(start, end)
+
+      if (selectedText) {
+        // Wrap selected text in link
+        insertText(`[${selectedText}](${url})`, '')
+        const newText = content.substring(0, start) + `[${selectedText}](${url})` + content.substring(end)
+        setContent(newText)
+      } else {
+        insertText(url)
+      }
+    }
+  }
+
+  // Track unsaved changes
+  useEffect(() => {
+    if (content.trim() || topic.trim()) {
+      setHasUnsavedChanges(true)
+    }
+  }, [content, topic])
+
+  // Предупреждение при закрытии вкладки
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [hasUnsavedChanges])
+
+  // Функция для безопасного выхода
+  const handleExit = () => {
+    if (hasUnsavedChanges && content.trim()) {
+      setShowConfirmExit(true)
+    } else {
+      router.push('/')
     }
   }
 
@@ -147,7 +271,8 @@ function CreatePostPage() {
           ? { telegram: selectedChannels[0] }
           : {},
       })
-      router.push('/')
+      setHasUnsavedChanges(false)
+      router.push('/?refresh=' + Date.now())
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Ошибка сохранения')
     } finally {
@@ -170,7 +295,8 @@ function CreatePostPage() {
           : {},
         publish_at: publishAt.toISOString(),
       })
-      router.push('/')
+      setHasUnsavedChanges(false)
+      router.push('/?refresh=' + Date.now())
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Ошибка планирования')
     } finally {
@@ -183,7 +309,6 @@ function CreatePostPage() {
 
     setIsPublishing(true)
     try {
-      // Создаём пост и сразу публикуем
       const createResponse = await postsApi.create({
         text: content,
         topic: topic || undefined,
@@ -192,7 +317,8 @@ function CreatePostPage() {
       })
 
       await postsApi.publish(createResponse.data.id)
-      router.push('/')
+      setHasUnsavedChanges(false)
+      router.push('/?refresh=' + Date.now())
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Ошибка публикации')
     } finally {
@@ -206,30 +332,51 @@ function CreatePostPage() {
     return num.toString()
   }
 
+  // Render formatted content for preview
+  const renderFormattedContent = (text: string) => {
+    // Simple markdown rendering for preview
+    let html = text
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/_(.*?)_/g, '<em>$1</em>')
+      .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" class="text-primary underline">$1</a>')
+
+    return <div className="whitespace-pre-wrap text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: html }} />
+  }
+
   return (
     <div className="h-full flex">
-      {/* Левая панель — редактор */}
+      {/* Left panel — editor */}
       <div className="flex-1 flex flex-col border-r border-border">
-        {/* Заголовок */}
-        <div className="h-16 px-6 border-b border-border flex items-center">
-          <h1 className="text-xl font-semibold">Создать пост</h1>
+        {/* Header */}
+        <div className="h-16 px-6 border-b border-border flex items-center gap-4">
+          <button
+            onClick={handleExit}
+            className="p-2 rounded-lg hover:bg-secondary transition-colors"
+            title="Назад"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <h1 className="text-xl font-semibold">
+            {isNoteMode ? 'Создать заметку' : 'Создать пост'}
+          </h1>
         </div>
 
-        {/* Выбор каналов */}
-        <div className="px-6 py-4 border-b border-border">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-sm text-muted-foreground">Каналы:</span>
-            {loadingChannels ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : channels.length === 0 ? (
-              <span className="text-sm text-muted-foreground">Нет подключённых каналов</span>
-            ) : null}
-          </div>
+        {/* Channel selection - только для постов */}
+        {!isNoteMode && (
+          <div className="px-6 py-4 border-b border-border">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-sm text-muted-foreground">Каналы:</span>
+              {loadingChannels ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : channels.length === 0 ? (
+                <span className="text-sm text-muted-foreground">Нет подключённых каналов</span>
+              ) : null}
+            </div>
 
-          <div className="flex flex-wrap gap-3">
-            {channels.map((channel) => (
-              <div key={channel.channel_id} className="relative group">
+            <div className="flex flex-wrap gap-3">
+              {channels.map((channel) => (
                 <button
+                  key={channel.channel_id}
                   onClick={() => toggleChannel(channel.channel_id)}
                   className={`flex items-center gap-2 px-3 py-2 rounded-full border-2 transition-all ${
                     selectedChannels.includes(channel.channel_id)
@@ -254,69 +401,169 @@ function CreatePostPage() {
                     </div>
                   </div>
                 </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    removeChannel(channel.channel_id)
-                  }}
-                  className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                  title="Удалить канал"
+              ))}
+
+              {channels.length === 0 && !loadingChannels && (
+                <a
+                  href="/settings"
+                  className="flex items-center gap-2 px-3 py-2 rounded-full border-2 border-dashed border-border hover:border-primary/50 transition-colors text-sm text-muted-foreground"
                 >
-                  <X className="w-3 h-3 text-white" />
-                </button>
-              </div>
-            ))}
-
-            {/* Кнопка добавления канала */}
-            <button
-              onClick={() => setShowAddChannel(true)}
-              className="flex items-center gap-2 px-3 py-2 rounded-full border-2 border-dashed border-border hover:border-primary/50 transition-colors"
-            >
-              <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
-                <Plus className="w-4 h-4" />
-              </div>
-              <span className="text-sm">Добавить</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Генерация по теме */}
-        <div className="px-6 py-4 border-b border-border">
-          <div className="flex gap-3">
-            <input
-              type="text"
-              placeholder="Тема для генерации..."
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && generateContent()}
-              className="flex-1 bg-input rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-            <button
-              onClick={generateContent}
-              disabled={isGenerating || !topic.trim()}
-              className="px-4 py-2 btn-core text-white rounded-lg flex items-center gap-2 disabled:opacity-50"
-            >
-              {isGenerating ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Wand2 className="w-4 h-4" />
+                  Добавьте каналы в настройках
+                </a>
               )}
-              Сгенерировать
+            </div>
+          </div>
+        )}
+
+        {/* AI generation - только для постов */}
+        {!isNoteMode && (
+          <div className="px-6 py-4 border-b border-border">
+            <div className="flex gap-3">
+              <input
+                type="text"
+                placeholder="Тема для генерации..."
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && generateContent()}
+                className="flex-1 bg-input rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              <button
+                onClick={generateContent}
+                disabled={isGenerating || !topic.trim()}
+                className="px-4 py-2 btn-core text-white rounded-lg flex items-center gap-2 disabled:opacity-50"
+              >
+                {isGenerating ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Wand2 className="w-4 h-4" />
+                )}
+                Сгенерировать
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Подсказка для заметки */}
+        {isNoteMode && (
+          <div className="px-6 py-4 border-b border-border bg-yellow-500/5">
+            <p className="text-sm text-muted-foreground">
+              Заметка — это идея или напоминание. Позже вы сможете превратить её в полноценный пост.
+            </p>
+          </div>
+        )}
+
+        {/* Formatting toolbar */}
+        <div className="px-6 py-2 border-b border-border flex items-center gap-1">
+          <button
+            onClick={formatBold}
+            className="p-2 rounded-lg hover:bg-secondary transition-colors"
+            title="Жирный (Ctrl+B)"
+          >
+            <Bold className="w-4 h-4" />
+          </button>
+          <button
+            onClick={formatItalic}
+            className="p-2 rounded-lg hover:bg-secondary transition-colors"
+            title="Курсив (Ctrl+I)"
+          >
+            <Italic className="w-4 h-4" />
+          </button>
+
+          <div className="w-px h-6 bg-border mx-1" />
+
+          <button
+            onClick={formatBulletList}
+            className="p-2 rounded-lg hover:bg-secondary transition-colors"
+            title="Маркированный список"
+          >
+            <List className="w-4 h-4" />
+          </button>
+          <button
+            onClick={formatNumberedList}
+            className="p-2 rounded-lg hover:bg-secondary transition-colors"
+            title="Нумерованный список"
+          >
+            <ListOrdered className="w-4 h-4" />
+          </button>
+
+          <div className="w-px h-6 bg-border mx-1" />
+
+          <button
+            onClick={insertHashtag}
+            className="p-2 rounded-lg hover:bg-secondary transition-colors"
+            title="Хэштег"
+          >
+            <Hash className="w-4 h-4" />
+          </button>
+          <button
+            onClick={insertLink}
+            className="p-2 rounded-lg hover:bg-secondary transition-colors"
+            title="Ссылка"
+          >
+            <Link2 className="w-4 h-4" />
+          </button>
+
+          <div className="w-px h-6 bg-border mx-1" />
+
+          {/* Emoji picker */}
+          <div className="relative">
+            <button
+              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+              className={clsx(
+                'p-2 rounded-lg transition-colors',
+                showEmojiPicker ? 'bg-primary/20 text-primary' : 'hover:bg-secondary'
+              )}
+              title="Эмодзи"
+            >
+              <Smile className="w-4 h-4" />
             </button>
+
+            {showEmojiPicker && (
+              <div className="absolute top-full left-0 mt-2 bg-card border border-border rounded-xl p-3 shadow-xl z-10 w-[280px]">
+                <div className="grid grid-cols-8 gap-1">
+                  {EMOJI_LIST.map((emoji) => (
+                    <button
+                      key={emoji}
+                      onClick={() => insertEmoji(emoji)}
+                      className="w-8 h-8 flex items-center justify-center text-lg hover:bg-secondary rounded-lg transition-colors"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Редактор контента */}
+        {/* Content editor */}
         <div className="flex-1 p-6">
           <textarea
+            ref={textareaRef}
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            placeholder="Напишите текст поста или сгенерируйте с помощью AI..."
+            onSelect={handleSelect}
+            onKeyDown={(e) => {
+              // Keyboard shortcuts
+              if (e.ctrlKey || e.metaKey) {
+                if (e.key === 'b') {
+                  e.preventDefault()
+                  formatBold()
+                } else if (e.key === 'i') {
+                  e.preventDefault()
+                  formatItalic()
+                }
+              }
+            }}
+            placeholder={isNoteMode
+              ? "Запишите идею или напоминание..."
+              : "Напишите текст поста или сгенерируйте с помощью AI..."
+            }
             className="w-full h-full bg-transparent resize-none focus:outline-none text-lg leading-relaxed"
           />
         </div>
 
-        {/* Ошибка */}
+        {/* Error */}
         {error && (
           <div className="px-6 py-3 bg-red-500/10 border-t border-red-500/20">
             <div className="flex items-center gap-2 text-red-400 text-sm">
@@ -326,7 +573,7 @@ function CreatePostPage() {
           </div>
         )}
 
-        {/* Нижняя панель с действиями */}
+        {/* Bottom action bar */}
         <div className="h-20 px-6 border-t border-border flex items-center justify-between">
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground">
@@ -335,14 +582,14 @@ function CreatePostPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Планирование */}
+            {/* Schedule - для постов и заметок */}
             <div className="relative">
               <button
                 onClick={() => setShowSchedule(!showSchedule)}
                 className="px-4 py-2 bg-secondary rounded-lg flex items-center gap-2 hover:bg-secondary/80"
               >
                 <Calendar className="w-4 h-4" />
-                Запланировать
+                {isNoteMode ? 'Добавить в календарь' : 'Запланировать'}
                 <ChevronDown className={`w-4 h-4 transition-transform ${showSchedule ? 'rotate-180' : ''}`} />
               </button>
 
@@ -358,55 +605,77 @@ function CreatePostPage() {
                         className="w-full mt-1 bg-input rounded-lg px-3 py-2"
                       />
                     </div>
-                    <div>
-                      <label className="text-sm text-muted-foreground">Время</label>
-                      <input
-                        type="time"
-                        value={scheduleTime}
-                        onChange={(e) => setScheduleTime(e.target.value)}
-                        className="w-full mt-1 bg-input rounded-lg px-3 py-2"
-                      />
-                    </div>
+                    {!isNoteMode && (
+                      <div>
+                        <label className="text-sm text-muted-foreground">Время</label>
+                        <input
+                          type="time"
+                          value={scheduleTime}
+                          onChange={(e) => setScheduleTime(e.target.value)}
+                          className="w-full mt-1 bg-input rounded-lg px-3 py-2"
+                        />
+                      </div>
+                    )}
                     <button
-                      onClick={schedulePost}
-                      disabled={!scheduleDate || !scheduleTime || !content.trim() || isSaving}
+                      onClick={isNoteMode ? saveAsDraft : schedulePost}
+                      disabled={!scheduleDate || (!isNoteMode && !scheduleTime) || !content.trim() || isSaving}
                       className="w-full py-2 btn-core text-white rounded-lg disabled:opacity-50 flex items-center justify-center gap-2"
                     >
                       {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Clock className="w-4 h-4" />}
-                      Добавить в календарь
+                      {isNoteMode ? 'Сохранить заметку' : 'Добавить в календарь'}
                     </button>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Сохранить как черновик */}
-            <button
-              onClick={saveAsDraft}
-              disabled={!content.trim() || isSaving}
-              className="px-4 py-2 bg-secondary rounded-lg hover:bg-secondary/80 disabled:opacity-50"
-            >
-              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Черновик'}
-            </button>
+            {/* Save as draft - только для постов */}
+            {!isNoteMode && (
+              <button
+                onClick={saveAsDraft}
+                disabled={!content.trim() || isSaving}
+                className="px-4 py-2 bg-secondary rounded-lg hover:bg-secondary/80 disabled:opacity-50"
+              >
+                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Черновик'}
+              </button>
+            )}
 
-            {/* Опубликовать сейчас */}
-            <button
-              onClick={publishNow}
-              disabled={!content.trim() || selectedChannels.length === 0 || isPublishing}
-              className="px-6 py-2 btn-core text-white rounded-lg disabled:opacity-50 flex items-center gap-2"
-            >
-              {isPublishing ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Send className="w-4 h-4" />
-              )}
-              Опубликовать
-            </button>
+            {/* Publish now - только для постов */}
+            {!isNoteMode && (
+              <button
+                onClick={publishNow}
+                disabled={!content.trim() || selectedChannels.length === 0 || isPublishing}
+                className="px-6 py-2 btn-core text-white rounded-lg disabled:opacity-50 flex items-center gap-2"
+              >
+                {isPublishing ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
+                Опубликовать
+              </button>
+            )}
+
+            {/* Быстрое сохранение заметки без даты */}
+            {isNoteMode && (
+              <button
+                onClick={saveAsDraft}
+                disabled={!content.trim() || isSaving}
+                className="px-6 py-2 btn-core text-white rounded-lg disabled:opacity-50 flex items-center gap-2"
+              >
+                {isSaving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Check className="w-4 h-4" />
+                )}
+                Сохранить
+              </button>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Правая панель — превью */}
+      {/* Right panel — preview */}
       <div className="w-[400px] flex flex-col bg-card/50">
         <div className="h-16 px-6 border-b border-border flex items-center">
           <Eye className="w-5 h-5 mr-2 text-muted-foreground" />
@@ -438,9 +707,7 @@ function CreatePostPage() {
 
                     {/* Content */}
                     <div className="p-4">
-                      <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                        {content}
-                      </div>
+                      {renderFormattedContent(content)}
 
                       {/* Footer */}
                       <div className="mt-4 pt-3 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
@@ -456,9 +723,7 @@ function CreatePostPage() {
 
               {selectedChannels.length === 0 && (
                 <div className="bg-card rounded-xl border border-border p-4">
-                  <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                    {content}
-                  </div>
+                  {renderFormattedContent(content)}
                   <div className="mt-4 text-xs text-muted-foreground text-center">
                     Выберите канал для публикации
                   </div>
@@ -477,63 +742,45 @@ function CreatePostPage() {
         </div>
       </div>
 
-      {/* Модалка добавления канала */}
-      {showAddChannel && (
+      {/* Confirm exit dialog */}
+      {showConfirmExit && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-card rounded-xl p-6 w-[420px] border border-border shadow-2xl">
-            <h3 className="text-lg font-semibold mb-4">Подключить канал</h3>
+          <div className="bg-card rounded-xl p-6 w-[380px] border border-border shadow-2xl">
+            <h3 className="text-lg font-semibold mb-2">Сохранить изменения?</h3>
+            <p className="text-muted-foreground text-sm mb-6">
+              У вас есть несохранённые изменения. Хотите сохранить их перед выходом?
+            </p>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm text-muted-foreground mb-2">
-                  Username канала
-                </label>
-                <input
-                  type="text"
-                  placeholder="@mychannel"
-                  value={newChannelInput}
-                  onChange={(e) => setNewChannelInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && addChannel()}
-                  className="w-full bg-input rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary"
-                  autoFocus
-                />
-                <p className="text-xs text-muted-foreground mt-2">
-                  Бот @Yadro888_bot должен быть администратором канала с правами на публикацию
-                </p>
-              </div>
-
-              {error && (
-                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
-                  {error}
-                </div>
-              )}
-            </div>
-
-            <div className="flex gap-3 mt-6">
+            <div className="flex gap-3">
               <button
                 onClick={() => {
-                  setShowAddChannel(false)
-                  setError('')
+                  setShowConfirmExit(false)
+                  router.push('/')
                 }}
                 className="flex-1 py-3 bg-secondary rounded-lg hover:bg-secondary/80"
               >
-                Отмена
+                Не сохранять
               </button>
               <button
-                onClick={addChannel}
-                disabled={addingChannel || !newChannelInput.trim()}
-                className="flex-1 py-3 btn-core text-white rounded-lg disabled:opacity-50 flex items-center justify-center gap-2"
+                onClick={() => {
+                  setShowConfirmExit(false)
+                  saveAsDraft()
+                }}
+                className="flex-1 py-3 btn-core text-white rounded-lg"
               >
-                {addingChannel ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Plus className="w-4 h-4" />
-                )}
-                Подключить
+                Сохранить
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Click outside to close emoji picker */}
+      {showEmojiPicker && (
+        <div
+          className="fixed inset-0 z-0"
+          onClick={() => setShowEmojiPicker(false)}
+        />
       )}
     </div>
   )

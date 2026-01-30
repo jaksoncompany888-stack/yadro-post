@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     tg_id INTEGER UNIQUE NOT NULL,
     username TEXT,
+    role TEXT DEFAULT 'user' CHECK(role IN ('admin', 'smm', 'user')),
     is_active INTEGER DEFAULT 1,
     settings TEXT DEFAULT '{}',
     created_at TEXT DEFAULT (datetime('now')),
@@ -172,6 +173,22 @@ CREATE TABLE IF NOT EXISTS drafts (
 
 CREATE INDEX IF NOT EXISTS idx_drafts_user_id ON drafts(user_id);
 CREATE INDEX IF NOT EXISTS idx_drafts_status ON drafts(status, publish_at);
+
+-- Notes (заметки пользователя)
+CREATE TABLE IF NOT EXISTS notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    title TEXT,
+    content TEXT NOT NULL,
+    color TEXT DEFAULT 'default',
+    is_pinned INTEGER DEFAULT 0,
+    metadata TEXT DEFAULT '{}',
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_notes_user_id ON notes(user_id);
+CREATE INDEX IF NOT EXISTS idx_notes_pinned ON notes(user_id, is_pinned);
 
 -- View for tasks with user info
 CREATE VIEW IF NOT EXISTS tasks_with_user AS

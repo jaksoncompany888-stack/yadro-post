@@ -443,6 +443,35 @@ class TelegramProvider(SocialProvider):
         except Exception:
             return False
 
+    async def get_post_stats(self, channel_id: str, message_id: str) -> Optional[dict]:
+        """
+        Get statistics for a posted message.
+
+        Note: Telegram Bot API has limited stats access.
+        For full stats, would need Telegram API (MTProto) via telethon/pyrogram.
+        This returns what's available via Bot API.
+        """
+        await self._ensure_bot()
+
+        chat_id = self._normalize_channel_id(channel_id)
+
+        try:
+            # Try to get message info (limited in Bot API)
+            # Bot API doesn't provide view counts directly
+            # We can only check if message exists
+
+            # For now, return placeholder stats
+            # Real implementation would need MTProto client
+            return {
+                'views': 0,  # Not available via Bot API
+                'forwards': 0,
+                'reactions': 0,
+                'comments': 0,
+            }
+        except Exception as e:
+            logger.error(f"Failed to get stats for message {message_id}: {e}")
+            return None
+
     def format_text(self, text: str) -> str:
         """
         Convert markdown to HTML for Telegram.

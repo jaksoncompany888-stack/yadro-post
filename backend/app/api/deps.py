@@ -240,7 +240,7 @@ async def get_current_user(
 
     # Get or create user
     user = db.fetch_one(
-        "SELECT id, tg_id, username, settings FROM users WHERE tg_id = ?",
+        "SELECT id, tg_id, username, role, settings FROM users WHERE tg_id = ?",
         (tg_id,)
     )
 
@@ -248,11 +248,11 @@ async def get_current_user(
         # Create new user
         username = tg_user.get("username")
         db.execute(
-            "INSERT INTO users (tg_id, username) VALUES (?, ?)",
+            "INSERT INTO users (tg_id, username, role) VALUES (?, ?, 'user')",
             (tg_id, username)
         )
         user = db.fetch_one(
-            "SELECT id, tg_id, username, settings FROM users WHERE tg_id = ?",
+            "SELECT id, tg_id, username, role, settings FROM users WHERE tg_id = ?",
             (tg_id,)
         )
 
@@ -260,8 +260,49 @@ async def get_current_user(
         "id": user["id"],
         "tg_id": user["tg_id"],
         "username": user["username"],
+        "role": user["role"] or "user",
         "settings": json.loads(user["settings"] or "{}"),
     }
+
+
+# =============================================================================
+# Role-based Access Control
+# =============================================================================
+
+def require_role(allowed_roles: list):
+    """
+    Dependency factory for role-based access control.
+
+    Usage:
+        @router.get("/admin-only")
+        async def admin_endpoint(user: dict = Depends(require_role(["admin"]))):
+            ...
+
+    Roles:
+        - admin: Полный доступ, управление пользователями, подписки
+        - smm: Просмотр пользователей, проверка подписок, НЕ может менять тарифы
+        - user: Базовый интерфейс, платный контент закрыт
+    """
+    async def role_checker(user: dict = Depends(get_current_user)) -> dict:
+        user_role = user.get("role", "user")
+        if user_role not in allowed_roles:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Access denied. Required role: {allowed_roles}, your role: {user_role}"
+            )
+        return user
+    return role_checker
+
+
+# Convenience dependencies for common role checks
+async def get_admin_user(user: dict = Depends(require_role(["admin"]))) -> dict:
+    """Require admin role."""
+    return user
+
+
+async def get_smm_or_admin_user(user: dict = Depends(require_role(["admin", "smm"]))) -> dict:
+    """Require SMM or admin role."""
+    return user
 
 
 # =============================================================================

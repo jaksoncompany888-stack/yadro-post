@@ -9,7 +9,6 @@ import {
   MessageSquare,
   BarChart3,
   Image,
-  Puzzle,
   Settings,
   Zap,
   Sun,
@@ -17,15 +16,31 @@ import {
   Plus,
   Menu,
   X,
+  FileText,
+  StickyNote,
+  Users,
 } from 'lucide-react'
+import { usersApi } from '@/lib/api'
 
-const navigation = [
+// Роли: admin, smm, user
+type UserRole = 'admin' | 'smm' | 'user'
+
+interface NavItem {
+  name: string
+  href: string
+  icon: any
+  roles?: UserRole[] // Если не указано - доступно всем
+}
+
+const navigation: NavItem[] = [
   { name: 'Календарь', href: '/', icon: Calendar },
+  { name: 'Черновики', href: '/drafts', icon: FileText },
+  { name: 'Заметки', href: '/notes', icon: StickyNote },
   { name: 'Агент', href: '/agent', icon: MessageSquare },
   { name: 'Аналитика', href: '/analytics', icon: BarChart3 },
   { name: 'Медиа', href: '/media', icon: Image },
-  { name: 'Плагины', href: '/plugins', icon: Puzzle },
   { name: 'Анализ', href: '/integrations', icon: Zap },
+  { name: 'Пользователи', href: '/admin/users', icon: Users, roles: ['admin', 'smm'] },
 ]
 
 // Для мобильного нижнего меню - только основные пункты
@@ -41,6 +56,25 @@ export function Sidebar() {
   const pathname = usePathname()
   const [isDark, setIsDark] = useState(true)
   const [showMobileMenu, setShowMobileMenu] = useState(false)
+  const [userRole, setUserRole] = useState<UserRole>('user')
+
+  // Load user role
+  useEffect(() => {
+    usersApi.me()
+      .then((res) => {
+        setUserRole(res.data.role || 'user')
+      })
+      .catch(() => {
+        // Default to user if API fails
+        setUserRole('user')
+      })
+  }, [])
+
+  // Filter navigation by user role
+  const filteredNavigation = navigation.filter((item) => {
+    if (!item.roles) return true // Доступно всем
+    return item.roles.includes(userRole)
+  })
 
   // Load theme from localStorage
   useEffect(() => {
@@ -85,7 +119,7 @@ export function Sidebar() {
 
         {/* Navigation */}
         <nav className="flex-1 flex flex-col gap-2">
-          {navigation.map((item) => {
+          {filteredNavigation.map((item) => {
             const isActive = pathname === item.href
             return (
               <Link
@@ -199,7 +233,7 @@ export function Sidebar() {
             </div>
 
             <div className="grid grid-cols-4 gap-4 mb-6">
-              {[...navigation, { name: 'Настройки', href: '/settings', icon: Settings }].map((item) => {
+              {[...filteredNavigation, { name: 'Настройки', href: '/settings', icon: Settings }].map((item) => {
                 const isActive = pathname === item.href
                 return (
                   <Link
