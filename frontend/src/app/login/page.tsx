@@ -224,8 +224,31 @@ export default function LoginPage() {
         {/* Auth Forms */}
         {authState !== 'success' && (
           <div className="bg-card rounded-2xl border border-border p-6 shadow-lg">
+            {/* Telegram Login Widget - First */}
+            <div className="text-center mb-4">
+              <div
+                id="telegram-login-container"
+                className="flex justify-center"
+              >
+                <div className="text-muted-foreground text-sm flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Загрузка...
+                </div>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-border"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-card text-muted-foreground">или по email</span>
+              </div>
+            </div>
+
             {/* Tabs */}
-            <div className="flex mb-6 bg-secondary rounded-lg p-1">
+            <div className="flex mb-4 bg-secondary rounded-lg p-1">
               <button
                 onClick={() => setMode('login')}
                 className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
@@ -419,31 +442,6 @@ export default function LoginPage() {
               </form>
             )}
 
-            {/* Divider */}
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-border"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-card text-muted-foreground">или</span>
-              </div>
-            </div>
-
-            {/* Telegram Login Widget */}
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground mb-4">
-                Войти через Telegram
-              </p>
-              <div
-                id="telegram-login-container"
-                className="flex justify-center"
-              >
-                <div className="text-muted-foreground text-sm flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Загрузка виджета...
-                </div>
-              </div>
-            </div>
           </div>
         )}
 
