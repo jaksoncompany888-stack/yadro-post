@@ -116,8 +116,8 @@ async def publish_post_with_retry(db, post_id: int, max_retries: int = 3):
 
     retry_count = metadata.get('retry_count', 0)
 
-    # Initialize provider manager
-    bot_token = os.environ.get('TELEGRAM_BOT_TOKEN', '')
+    # Initialize provider manager - use posting bot
+    bot_token = os.environ.get('TELEGRAM_POSTING_BOT_TOKEN') or os.environ.get('TELEGRAM_BOT_TOKEN', '')
     provider_manager = ProviderManager()
 
     if bot_token:
@@ -258,7 +258,7 @@ async def collect_post_analytics(post_id: int):
 
     # Collect from Telegram
     if 'telegram' in published_ids:
-        bot_token = os.environ.get('TELEGRAM_BOT_TOKEN', '')
+        bot_token = os.environ.get('TELEGRAM_POSTING_BOT_TOKEN') or os.environ.get('TELEGRAM_BOT_TOKEN', '')
         if bot_token:
             try:
                 provider = TelegramProvider(bot_token)

@@ -329,10 +329,10 @@ async def publish_post(
     row_dict = dict(row)
     metadata = json.loads(row_dict.get("metadata") or "{}")
 
-    # Initialize provider
-    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    # Initialize provider - use posting bot (separate from auth bot)
+    bot_token = os.environ.get("TELEGRAM_POSTING_BOT_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN")
     if not bot_token:
-        raise HTTPException(status_code=500, detail="Bot not configured")
+        raise HTTPException(status_code=500, detail="Posting bot not configured")
 
     published_ids = {}
     published_urls = {}

@@ -84,9 +84,10 @@ async def add_user_channel(
         channel_id = f"@{channel_id}"
 
     if data.platform == "telegram":
-        bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
+        # Use posting bot for channel operations
+        bot_token = os.environ.get("TELEGRAM_POSTING_BOT_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN")
         if not bot_token:
-            raise HTTPException(status_code=500, detail="Bot not configured")
+            raise HTTPException(status_code=500, detail="Posting bot not configured")
 
         provider = TelegramProvider(bot_token=bot_token)
 
@@ -99,7 +100,7 @@ async def add_user_channel(
                 return ValidateResponse(
                     valid=False,
                     can_post=False,
-                    error="Бот не добавлен в канал как администратор. Добавьте бота @Yadro888_bot в канал с правами на публикацию."
+                    error="Бот не добавлен в канал как администратор. Добавьте бота @YadroPost_bot в канал с правами на публикацию."
                 )
 
             # Получаем информацию о канале
@@ -199,9 +200,10 @@ async def validate_channel(
         channel_id = f"@{channel_id}"
 
     if data.platform == "telegram":
-        bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
+        # Use posting bot for channel validation
+        bot_token = os.environ.get("TELEGRAM_POSTING_BOT_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN")
         if not bot_token:
-            raise HTTPException(status_code=500, detail="Bot not configured")
+            raise HTTPException(status_code=500, detail="Posting bot not configured")
 
         provider = TelegramProvider(bot_token=bot_token)
 
