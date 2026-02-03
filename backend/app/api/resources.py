@@ -73,10 +73,10 @@ async def get_my_channel(
     """
     user_id = user["id"]
 
-    # Ищем в memory_items
+    # Ищем в memory_items (agent сохраняет как fact с контентом "Канал: ...")
     row = db.fetch_one(
         """SELECT content, metadata FROM memory_items
-           WHERE user_id = ? AND memory_type = 'channel'
+           WHERE user_id = ? AND memory_type = 'fact' AND content LIKE 'Канал:%'
            ORDER BY created_at DESC LIMIT 1""",
         (user_id,)
     )
@@ -85,20 +85,26 @@ async def get_my_channel(
         return MyChannelResponse()
 
     import json
+    import re
     content = row["content"]
     metadata = json.loads(row["metadata"]) if row["metadata"] else {}
 
-    # Извлекаем имя канала из content "Канал: name (ID: id)"
-    channel = metadata.get("channel_id", "")
+    # Извлекаем имя канала из content "Канал: name (ID: @channel_id)"
+    # Пример: "Канал: @test_channel (ID: @test_channel)"
+    channel = ""
+    name = ""
+    match = re.search(r'ID: ([^\)]+)', content)
+    if match:
+        channel = match.group(1).strip()
     name = content.replace("Канал:", "").split("(")[0].strip() if content else ""
 
-    # Проверяем есть ли анализ
+    # Проверяем есть ли анализ (agent сохраняет как context с контентом "Стиль канала ...")
     analysis = db.fetch_one(
         """SELECT metadata FROM memory_items
-           WHERE user_id = ? AND memory_type = 'channel_style'
+           WHERE user_id = ? AND memory_type = 'context'
            AND content LIKE ?
            ORDER BY created_at DESC LIMIT 1""",
-        (user_id, f"%{channel.replace('@', '')}%")
+        (user_id, f"%Стиль канала%{channel.replace('@', '')}%")
     )
 
     analyzed = analysis is not None
@@ -134,9 +140,9 @@ async def set_my_channel(
     if not channel.startswith("@"):
         channel = f"@{channel}"
 
-    # Удаляем старый канал если есть
+    # Удаляем старый канал если есть (agent сохраняет как fact)
     db.execute(
-        "DELETE FROM memory_items WHERE user_id = ? AND memory_type = 'channel'",
+        "DELETE FROM memory_items WHERE user_id = ? AND memory_type = 'fact' AND content LIKE 'Канал:%'",
         (user_id,)
     )
 
@@ -203,13 +209,13 @@ async def list_competitors(
     for comp in competitors:
         channel = comp["channel"]
 
-        # Проверяем есть ли анализ
+        # Проверяем есть ли анализ (agent сохраняет как context)
         analysis = db.fetch_one(
             """SELECT metadata FROM memory_items
-               WHERE user_id = ? AND memory_type = 'channel_style'
+               WHERE user_id = ? AND memory_type = 'context'
                AND content LIKE ?
                ORDER BY created_at DESC LIMIT 1""",
-            (user_id, f"%{channel.replace('@', '')}%")
+            (user_id, f"%Стиль канала%{channel.replace('@', '')}%")
         )
 
         analyzed = analysis is not None
@@ -345,9 +351,10 @@ async def get_resources_summary(
     import json
     analyzed_count = 0
 
+    # agent сохраняет анализ как context с контентом "Стиль канала ..."
     rows = db.fetch_all(
         """SELECT content FROM memory_items
-           WHERE user_id = ? AND memory_type = 'channel_style'""",
+           WHERE user_id = ? AND memory_type = 'context' AND content LIKE 'Стиль канала%'""",
         (user_id,)
     )
     analyzed_count = len(rows)
