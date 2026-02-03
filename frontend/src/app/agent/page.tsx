@@ -464,27 +464,27 @@ export default function AgentPage() {
           </div>
 
           {/* Input */}
-          <div className="p-3 md:p-4 border-t border-border">
-            <div className="flex gap-2 md:gap-3">
+          <div className="p-2 md:p-4 border-t border-border">
+            <div className="flex gap-2 min-w-0">
               <input
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Напишите тему поста..."
-                className="flex-1 bg-input rounded-xl px-3 md:px-4 py-2.5 md:py-3 text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+                placeholder="Тема поста..."
+                className="flex-1 min-w-0 bg-input rounded-xl px-3 py-2.5 md:py-3 text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-primary transition-all"
               />
               <button
                 onClick={handleSend}
                 disabled={!input.trim() || isLoading}
-                className="px-3 md:px-6 py-2.5 md:py-3 btn-core text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 md:gap-2"
+                className="px-3 md:px-6 py-2.5 md:py-3 btn-core text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center flex-shrink-0"
               >
                 {isLoading ? (
-                  <Loader2 className="w-4 h-4 md:w-5 md:h-5 animate-spin" />
+                  <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
-                  <Send className="w-4 h-4 md:w-5 md:h-5" />
+                  <Send className="w-5 h-5" />
                 )}
-                <span className="hidden sm:inline">Отправить</span>
+                <span className="hidden md:inline ml-2">Отправить</span>
               </button>
             </div>
           </div>
