@@ -9,6 +9,9 @@ const PUBLIC_PATHS = [
   '/favicon.ico',
 ]
 
+// Dev токен для разработчиков (можно менять)
+const DEV_TOKEN = process.env.DEV_ACCESS_TOKEN || 'yadro-dev-2026'
+
 // Проверяем, является ли путь публичным
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some(path => pathname.startsWith(path))
@@ -25,6 +28,25 @@ export function middleware(request: NextRequest) {
 
   // Для локальной разработки (localhost) — пропускаем авторизацию
   if (host.includes('localhost') || host.includes('127.0.0.1')) {
+    return NextResponse.next()
+  }
+
+  // Dev токен в URL — для разработчиков на сервере
+  const devToken = request.nextUrl.searchParams.get('dev_token')
+  if (devToken === DEV_TOKEN) {
+    // Устанавливаем cookie и редиректим без параметра
+    const response = NextResponse.redirect(new URL(pathname, request.url))
+    response.cookies.set('dev_access', 'true', {
+      path: '/',
+      maxAge: 60 * 60 * 24, // 24 часа
+      sameSite: 'lax',
+    })
+    return response
+  }
+
+  // Проверяем dev_access cookie (для разработчиков)
+  const devAccess = request.cookies.get('dev_access')?.value
+  if (devAccess === 'true') {
     return NextResponse.next()
   }
 
