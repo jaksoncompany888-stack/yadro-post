@@ -449,7 +449,8 @@ export default function AgentPage() {
           </div>
 
           {/* Quick prompts - horizontal scroll on mobile */}
-          <div className="px-3 md:px-6 py-2 md:py-3 border-t border-border flex gap-2 overflow-x-auto">
+          <div className="py-2 md:py-3 border-t border-border flex gap-2 overflow-x-auto">
+            <div className="pl-3 md:pl-6 flex-shrink-0" />
             {quickPrompts.map((prompt) => (
               <button
                 key={prompt}
@@ -459,6 +460,7 @@ export default function AgentPage() {
                 {prompt}
               </button>
             ))}
+            <div className="pr-3 md:pr-6 flex-shrink-0" />
           </div>
 
           {/* Input */}
