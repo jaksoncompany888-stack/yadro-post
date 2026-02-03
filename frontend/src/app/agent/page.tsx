@@ -353,19 +353,19 @@ export default function AgentPage() {
         </div>
 
         {/* Chat area */}
-        <div className="flex-1 bg-card rounded-xl border border-border overflow-hidden flex flex-col">
+        <div className="flex-1 bg-card rounded-xl border border-border overflow-hidden flex flex-col min-w-0">
           {/* Messages */}
-          <div className="flex-1 overflow-auto p-6 space-y-4">
+          <div className="flex-1 overflow-auto p-3 md:p-6 space-y-3 md:space-y-4">
             {messages.map((message) => (
               <div
                 key={message.id}
-                className={`max-w-[80%] rounded-xl ${
+                className={`max-w-[90%] md:max-w-[80%] rounded-xl ${
                   message.role === 'user'
-                    ? 'ml-auto bg-gradient-ember text-white p-4'
-                    : 'bg-secondary p-4'
+                    ? 'ml-auto bg-gradient-ember text-white p-3 md:p-4'
+                    : 'bg-secondary p-3 md:p-4'
                 }`}
               >
-                <p className="whitespace-pre-wrap">{message.content}</p>
+                <p className="whitespace-pre-wrap break-words text-sm md:text-base">{message.content}</p>
 
                 {/* Hashtags */}
                 {message.hashtags && message.hashtags.length > 0 && (
