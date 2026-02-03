@@ -140,7 +140,7 @@ export function ChannelsSidebar() {
   }
 
   return (
-    <div className="w-52 border-r border-border p-4 flex flex-col">
+    <div className="hidden md:flex w-52 border-r border-border p-4 flex-col">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm font-medium">Мои ресурсы</h2>
         <button
@@ -302,8 +302,8 @@ function AddResourceModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-card rounded-xl p-6 w-[420px] max-h-[90vh] overflow-auto border border-border shadow-2xl">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-card rounded-xl p-4 md:p-6 w-full max-w-[420px] max-h-[90vh] overflow-auto border border-border shadow-2xl">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold">
             {selectedPlatform ? `Добавить ${platform?.name}` : 'Добавить ресурс'}

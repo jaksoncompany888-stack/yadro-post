@@ -261,46 +261,47 @@ export function Calendar() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex flex-col gap-4 mb-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">Календарь</h1>
+      <div className="flex flex-col gap-3 md:gap-4 mb-4 md:mb-6">
+        {/* Title and Navigation */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <h1 className="text-xl md:text-2xl font-semibold">Календарь</h1>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 md:gap-4 flex-wrap">
             {/* Navigation */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 md:gap-2">
               <button
                 onClick={goToPrev}
-                className="p-2 hover:bg-secondary rounded-lg transition-colors"
+                className="p-1.5 md:p-2 hover:bg-secondary rounded-lg transition-colors"
               >
-                <ChevronLeft className="w-5 h-5" />
+                <ChevronLeft className="w-4 h-4 md:w-5 md:h-5" />
               </button>
-              <span className="text-sm min-w-[200px] text-center">
+              <span className="text-xs md:text-sm min-w-[100px] md:min-w-[200px] text-center truncate">
                 {getDateRangeText()}
               </span>
               <button
                 onClick={goToNext}
-                className="p-2 hover:bg-secondary rounded-lg transition-colors"
+                className="p-1.5 md:p-2 hover:bg-secondary rounded-lg transition-colors"
               >
-                <ChevronRight className="w-5 h-5" />
+                <ChevronRight className="w-4 h-4 md:w-5 md:h-5" />
               </button>
             </div>
 
             {/* Today button */}
             <button
               onClick={goToToday}
-              className="px-4 py-2 text-sm bg-secondary hover:bg-secondary/80 rounded-lg transition-colors"
+              className="px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm bg-secondary hover:bg-secondary/80 rounded-lg transition-colors"
             >
               Сегодня
             </button>
 
-            {/* View switcher */}
-            <div className="flex bg-secondary rounded-lg p-1">
+            {/* View switcher - hidden on mobile */}
+            <div className="hidden sm:flex bg-secondary rounded-lg p-1">
               {(['day', 'week', 'month'] as ViewType[]).map((v) => (
                 <button
                   key={v}
                   onClick={() => setView(v)}
                   className={clsx(
-                    'px-4 py-1.5 text-sm rounded-md transition-colors',
+                    'px-3 md:px-4 py-1 md:py-1.5 text-xs md:text-sm rounded-md transition-colors',
                     view === v
                       ? 'bg-background text-foreground'
                       : 'text-muted-foreground hover:text-foreground'
@@ -313,16 +314,16 @@ export function Calendar() {
           </div>
         </div>
 
-        {/* Platform filters */}
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-muted-foreground" />
-          <div className="flex flex-wrap gap-2">
+        {/* Platform filters - horizontal scroll on mobile */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 -mb-2">
+          <Filter className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+          <div className="flex gap-2 flex-nowrap">
             {PLATFORMS.map((platform) => (
               <button
                 key={platform.id}
                 onClick={() => setPlatformFilter(platform.id)}
                 className={clsx(
-                  'flex items-center gap-2 px-3 py-1.5 rounded-full text-xs transition-all',
+                  'flex items-center gap-2 px-3 py-1.5 rounded-full text-xs transition-all whitespace-nowrap flex-shrink-0',
                   platformFilter === platform.id
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-secondary hover:bg-secondary/80'

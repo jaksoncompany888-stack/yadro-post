@@ -277,8 +277,8 @@ export default function AgentPage() {
 
   return (
     <div className="h-full flex">
-      {/* Chat History Sidebar */}
-      <div className="w-64 border-r border-border p-4 flex flex-col">
+      {/* Chat History Sidebar - hidden on mobile */}
+      <div className="hidden md:flex w-64 border-r border-border p-4 flex-col">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-medium">История диалогов</h2>
           <button
@@ -340,15 +340,15 @@ export default function AgentPage() {
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col p-6">
+      <div className="flex-1 flex flex-col p-3 md:p-6">
         {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl gradient-ember flex items-center justify-center glow-core">
-            <Wand2 className="w-5 h-5 text-white" />
+        <div className="flex items-center gap-3 mb-4 md:mb-6">
+          <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl gradient-ember flex items-center justify-center glow-core">
+            <Wand2 className="w-4 h-4 md:w-5 md:h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold">AI Агент</h1>
-            <p className="text-sm text-muted-foreground">Ядро SMM • Генерация контента</p>
+            <h1 className="text-lg md:text-2xl font-semibold">AI Агент</h1>
+            <p className="text-xs md:text-sm text-muted-foreground truncate">Ядро SMM • Генерация контента</p>
           </div>
         </div>
 
@@ -448,13 +448,13 @@ export default function AgentPage() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Quick prompts */}
-          <div className="px-6 py-3 border-t border-border flex gap-2 flex-wrap">
+          {/* Quick prompts - horizontal scroll on mobile */}
+          <div className="px-3 md:px-6 py-2 md:py-3 border-t border-border flex gap-2 overflow-x-auto">
             {quickPrompts.map((prompt) => (
               <button
                 key={prompt}
                 onClick={() => setInput(prompt)}
-                className="text-sm px-4 py-2 bg-secondary rounded-lg hover:bg-primary/20 hover:text-primary transition-colors"
+                className="text-xs md:text-sm px-3 md:px-4 py-1.5 md:py-2 bg-secondary rounded-lg hover:bg-primary/20 hover:text-primary transition-colors whitespace-nowrap flex-shrink-0"
               >
                 {prompt}
               </button>
@@ -462,27 +462,27 @@ export default function AgentPage() {
           </div>
 
           {/* Input */}
-          <div className="p-4 border-t border-border">
-            <div className="flex gap-3">
+          <div className="p-3 md:p-4 border-t border-border">
+            <div className="flex gap-2 md:gap-3">
               <input
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Напишите тему поста или задайте вопрос..."
-                className="flex-1 bg-input rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+                placeholder="Напишите тему поста..."
+                className="flex-1 bg-input rounded-xl px-3 md:px-4 py-2.5 md:py-3 text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-primary transition-all"
               />
               <button
                 onClick={handleSend}
                 disabled={!input.trim() || isLoading}
-                className="px-6 py-3 btn-core text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-3 md:px-6 py-2.5 md:py-3 btn-core text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 md:gap-2"
               >
                 {isLoading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <Loader2 className="w-4 h-4 md:w-5 md:h-5 animate-spin" />
                 ) : (
-                  <Send className="w-5 h-5" />
+                  <Send className="w-4 h-4 md:w-5 md:h-5" />
                 )}
-                Отправить
+                <span className="hidden sm:inline">Отправить</span>
               </button>
             </div>
           </div>

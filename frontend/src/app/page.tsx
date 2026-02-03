@@ -20,7 +20,7 @@ export default function HomePage() {
       <ChannelsSidebar />
 
       {/* Main calendar */}
-      <div className="flex-1 p-6">
+      <div className="flex-1 p-3 md:p-6">
         <Suspense fallback={<CalendarLoader />}>
           <Calendar />
         </Suspense>
