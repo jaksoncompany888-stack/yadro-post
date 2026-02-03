@@ -1313,7 +1313,7 @@ class SMMAgent:
 
 Верни ТОЛЬКО сокращённый текст, без комментариев."""
             print(f"[Edit] Creative mode (SHORTEN): {len(original)} → target ~{target_len}")
-            response = self.llm.complete_simple(prompt, task_type="smm")
+            response = self.llm.complete_simple(prompt, task_type="smm", user_id=user_id)
             result = response.strip()
         else:
             if is_expand:
@@ -1337,7 +1337,7 @@ class SMMAgent:
 Верни ТОЛЬКО готовый текст поста БЕЗ нумерации абзацев, без комментариев."""
 
             print(f"[Edit] Creative mode: {request}")
-            response = self.llm.complete_simple(prompt, task_type="smm")
+            response = self.llm.complete_simple(prompt, task_type="smm", user_id=user_id)
             result = response.strip()
 
         # Убираем markdown обёртки если есть
