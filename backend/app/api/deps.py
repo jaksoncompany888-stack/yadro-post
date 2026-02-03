@@ -222,47 +222,101 @@ telegram_auth = TelegramAuth()
 
 
 # =============================================================================
+# JWT Auth
+# =============================================================================
+
+JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "yadro-post-secret-change-in-production")
+JWT_ALGORITHM = "HS256"
+
+security = HTTPBearer(auto_error=False)
+
+
+def verify_jwt_token(token: str) -> Optional[dict]:
+    """Verify and decode JWT token."""
+    import jwt
+    try:
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        return payload
+    except Exception:
+        return None
+
+
+# =============================================================================
 # Current User
 # =============================================================================
 
 async def get_current_user(
-    tg_user: dict = Depends(telegram_auth),
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     db: Database = Depends(get_db),
 ) -> dict:
     """
-    Get or create current user from Telegram auth.
+    Get current user from JWT token or Telegram init data.
 
-    Returns user dict with 'id' (our internal ID) and 'tg_id'.
+    Supports:
+    1. JWT token in Authorization header (Bearer xxx)
+    2. Telegram Mini App init data (legacy)
+    3. Dev mode (returns mock user)
+
+    Returns user dict with 'id' (our internal ID) and other fields.
     """
-    tg_id = tg_user.get("id")
-    if not tg_id:
-        raise HTTPException(status_code=401, detail="Invalid user")
+    # Dev mode — return mock user
+    if DEV_MODE:
+        return DEV_USER
 
-    # Get or create user
-    user = db.fetch_one(
-        "SELECT id, tg_id, username, role, settings FROM users WHERE tg_id = ?",
-        (tg_id,)
-    )
+    # Try JWT token first (from Authorization: Bearer xxx)
+    if credentials and credentials.credentials:
+        payload = verify_jwt_token(credentials.credentials)
+        if payload:
+            user_id = int(payload.get("sub", 0))
+            if user_id:
+                user = db.fetch_one(
+                    "SELECT id, tg_id, email, username, first_name, last_name, role, settings FROM users WHERE id = ?",
+                    (user_id,)
+                )
+                if user:
+                    return {
+                        "id": user["id"],
+                        "tg_id": user["tg_id"],
+                        "email": user["email"],
+                        "username": user["username"],
+                        "first_name": user["first_name"],
+                        "last_name": user["last_name"],
+                        "role": user["role"] or "user",
+                        "settings": json.loads(user["settings"] or "{}"),
+                    }
 
-    if not user:
-        # Create new user
-        username = tg_user.get("username")
-        db.execute(
-            "INSERT INTO users (tg_id, username, role) VALUES (?, ?, 'user')",
-            (tg_id, username)
-        )
-        user = db.fetch_one(
-            "SELECT id, tg_id, username, role, settings FROM users WHERE tg_id = ?",
-            (tg_id,)
-        )
+    # Try Telegram Mini App init data (legacy)
+    try:
+        tg_user = await telegram_auth(request)
+        tg_id = tg_user.get("id")
+        if tg_id:
+            user = db.fetch_one(
+                "SELECT id, tg_id, username, role, settings FROM users WHERE tg_id = ?",
+                (tg_id,)
+            )
+            if not user:
+                # Create new user
+                username = tg_user.get("username")
+                db.execute(
+                    "INSERT INTO users (tg_id, username, role) VALUES (?, ?, 'user')",
+                    (tg_id, username)
+                )
+                user = db.fetch_one(
+                    "SELECT id, tg_id, username, role, settings FROM users WHERE tg_id = ?",
+                    (tg_id,)
+                )
+            return {
+                "id": user["id"],
+                "tg_id": user["tg_id"],
+                "username": user["username"],
+                "role": user["role"] or "user",
+                "settings": json.loads(user["settings"] or "{}"),
+            }
+    except HTTPException:
+        pass  # No Telegram init data
 
-    return {
-        "id": user["id"],
-        "tg_id": user["tg_id"],
-        "username": user["username"],
-        "role": user["role"] or "user",
-        "settings": json.loads(user["settings"] or "{}"),
-    }
+    raise HTTPException(status_code=401, detail="Authentication required")
 
 
 # =============================================================================
