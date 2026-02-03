@@ -2,14 +2,16 @@
 Channels API
 
 Анализ и управление Telegram каналами.
+Каналы для анализа конкурентов хранятся в БД привязанно к user_id.
 """
 
 from typing import Optional, List
 from pydantic import BaseModel
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 
 from app.tools.channel_parser import ChannelParser
+from app.api.deps import get_current_user, get_db
 
 
 router = APIRouter(prefix="/channels", tags=["channels"])
@@ -58,10 +60,6 @@ class ChannelAnalysis(BaseModel):
 class AnalyzeRequest(BaseModel):
     channel: str  # @username или username
     limit: int = 10
-
-
-# In-memory storage для каналов пользователя
-user_channels: dict = {}  # user_id -> [channels]
 
 
 # =============================================================================
@@ -132,22 +130,53 @@ async def analyze_channel(data: AnalyzeRequest):
 
 
 @router.get("", response_model=List[ChannelInfo])
-async def list_channels():
-    """Список сохранённых каналов."""
-    # TODO: привязка к user_id
-    return list(user_channels.get("default", []))
+async def list_channels(
+    db=Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Список сохранённых каналов конкурентов для текущего пользователя."""
+    user_id = current_user["id"]
+
+    rows = db.execute(
+        "SELECT username, title, subscribers, description FROM competitor_channels WHERE user_id = ?",
+        (user_id,)
+    ).fetchall()
+
+    return [
+        ChannelInfo(
+            username=row[0],
+            title=row[1] or row[0],
+            subscribers=row[2] or 0,
+            description=row[3] or ""
+        )
+        for row in rows
+    ]
 
 
 @router.post("/add")
-async def add_channel(data: AnalyzeRequest):
+async def add_channel(
+    data: AnalyzeRequest,
+    db=Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
     """
-    Добавить канал в список (с анализом).
+    Добавить канал в список конкурентов (с получением информации).
     """
     parser = ChannelParser()
+    user_id = current_user["id"]
 
     try:
         info = parser.get_channel_info(data.channel)
         username = data.channel.replace("@", "").replace("https://t.me/", "")
+
+        # Сохраняем в БД (INSERT OR REPLACE для обновления если уже есть)
+        db.execute(
+            """INSERT OR REPLACE INTO competitor_channels
+               (user_id, username, title, subscribers, description)
+               VALUES (?, ?, ?, ?, ?)""",
+            (user_id, username, info["title"], info["subscribers"], info["description"])
+        )
+        db.commit()
 
         channel = ChannelInfo(
             username=username,
@@ -156,15 +185,6 @@ async def add_channel(data: AnalyzeRequest):
             description=info["description"],
         )
 
-        # Сохраняем
-        if "default" not in user_channels:
-            user_channels["default"] = []
-
-        # Проверяем дубликат
-        existing = [c for c in user_channels["default"] if c.username == username]
-        if not existing:
-            user_channels["default"].append(channel)
-
         return {"status": "added", "channel": channel}
 
     except Exception as e:
@@ -172,13 +192,20 @@ async def add_channel(data: AnalyzeRequest):
 
 
 @router.delete("/{username}")
-async def remove_channel(username: str):
-    """Удалить канал из списка."""
-    if "default" in user_channels:
-        user_channels["default"] = [
-            c for c in user_channels["default"]
-            if c.username != username
-        ]
+async def remove_channel(
+    username: str,
+    db=Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Удалить канал из списка конкурентов."""
+    user_id = current_user["id"]
+
+    db.execute(
+        "DELETE FROM competitor_channels WHERE user_id = ? AND username = ?",
+        (user_id, username)
+    )
+    db.commit()
+
     return {"status": "removed"}
 
 

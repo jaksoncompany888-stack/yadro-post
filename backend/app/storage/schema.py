@@ -214,9 +214,23 @@ CREATE TABLE IF NOT EXISTS user_channels (
 
 CREATE INDEX IF NOT EXISTS idx_user_channels_user ON user_channels(user_id);
 
+-- Competitor channels (каналы для анализа конкурентов)
+CREATE TABLE IF NOT EXISTS competitor_channels (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    username TEXT NOT NULL,
+    title TEXT,
+    subscribers INTEGER DEFAULT 0,
+    description TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(user_id, username)
+);
+
+CREATE INDEX IF NOT EXISTS idx_competitor_channels_user ON competitor_channels(user_id);
+
 -- View for tasks with user info
 CREATE VIEW IF NOT EXISTS tasks_with_user AS
-SELECT 
+SELECT
     t.*,
     u.tg_id,
     u.username
