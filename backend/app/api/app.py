@@ -19,7 +19,7 @@ from .notes import router as notes_router
 from .users import router as users_router
 from .auth import router as auth_router
 from .resources import router as resources_router
-from .deps import get_db
+from .deps import get_db, get_memory
 
 
 @asynccontextmanager
@@ -30,6 +30,17 @@ async def lifespan(app: FastAPI):
     _migrate_drafts_table(db)
     _migrate_users_role(db)
     _migrate_users_auth(db)
+
+    # Register SMM tools with services
+    from ..tools.smm_tools import register_smm_tools
+    from ..memory.service import MemoryService
+
+    memory_service = MemoryService(db)
+    register_smm_tools(
+        memory_service=memory_service,
+        # channel_parser и news_monitor можно добавить позже
+    )
+    print("[API] SMM tools registered")
 
     # DISABLED: Background scheduler for auto-publishing
     # TODO: включить когда будет готова логика
