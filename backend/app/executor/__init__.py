@@ -7,6 +7,13 @@ from .models import Plan, Step, StepAction, StepStatus, ExecutionContext
 from .plan_manager import PlanManager
 from .step_executor import StepExecutor, ApprovalRequired
 from .executor import Executor, LimitExceeded, ExecutionError
+from .post_executor import (
+    PostExecutor,
+    PostPlan,
+    PostExecutionResult,
+    StepType,
+    create_post_executor,
+)
 
 __all__ = [
     # Models
@@ -24,4 +31,10 @@ __all__ = [
     "Executor",
     "LimitExceeded",
     "ExecutionError",
+    # Post Executor (Architecture-First)
+    "PostExecutor",
+    "PostPlan",
+    "PostExecutionResult",
+    "StepType",
+    "create_post_executor",
 ]

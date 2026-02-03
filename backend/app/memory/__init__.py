@@ -5,6 +5,13 @@ User memories with full-text search and context building.
 """
 from .models import MemoryItem, MemoryType, SearchResult, MemoryContext
 from .service import MemoryService
+from .user_memory import (
+    SQLiteMemory,
+    SuccessPatternDTO,
+    UserPreferenceDTO,
+    get_memory,
+    get_user_memory,
+)
 
 __all__ = [
     "MemoryItem",
@@ -12,4 +19,10 @@ __all__ = [
     "SearchResult",
     "MemoryContext",
     "MemoryService",
+    # User Memory (Architecture-First)
+    "SQLiteMemory",
+    "SuccessPatternDTO",
+    "UserPreferenceDTO",
+    "get_memory",
+    "get_user_memory",
 ]
