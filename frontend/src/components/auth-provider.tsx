@@ -62,6 +62,8 @@ export function AuthProvider({ children, requireAuth = false }: AuthProviderProp
   const logout = () => {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
+    // Clear cookie for middleware auth check
+    document.cookie = 'token=; path=/; max-age=0; SameSite=Lax'
     setUser(null)
     router.push('/login')
   }

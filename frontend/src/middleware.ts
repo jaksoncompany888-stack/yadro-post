@@ -22,20 +22,15 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Проверяем токен в cookies или localStorage недоступен в middleware,
-  // поэтому проверяем через cookie
+  // Проверяем токен в cookies (localStorage недоступен в middleware)
   const token = request.cookies.get('token')?.value
 
   // Если нет токена — редирект на логин
-  // НО: пока отключаем редирект, чтобы не ломать существующий функционал
-  // Когда будет готов бот — раскомментировать
-  /*
   if (!token) {
     const loginUrl = new URL('/login', request.url)
     loginUrl.searchParams.set('redirect', pathname)
     return NextResponse.redirect(loginUrl)
   }
-  */
 
   return NextResponse.next()
 }

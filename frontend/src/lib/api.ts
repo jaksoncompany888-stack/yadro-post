@@ -130,6 +130,8 @@ export const authApi = {
   logout: () => {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
+    // Clear cookie for middleware auth check
+    document.cookie = 'token=; path=/; max-age=0; SameSite=Lax'
     return api.post('/api/auth/logout')
   },
 }

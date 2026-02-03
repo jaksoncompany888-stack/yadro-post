@@ -52,6 +52,8 @@ export default function LoginPage() {
       const res = await authApi.login({ email, password })
       localStorage.setItem('token', res.data.token)
       localStorage.setItem('user', JSON.stringify(res.data.user))
+      // Set cookie for middleware auth check
+      document.cookie = `token=${res.data.token}; path=/; max-age=${30 * 24 * 60 * 60}; SameSite=Lax`
       setAuthState('success')
       setTimeout(() => router.push('/'), 1000)
     } catch (err: any) {
@@ -90,6 +92,8 @@ export default function LoginPage() {
       })
       localStorage.setItem('token', res.data.token)
       localStorage.setItem('user', JSON.stringify(res.data.user))
+      // Set cookie for middleware auth check
+      document.cookie = `token=${res.data.token}; path=/; max-age=${30 * 24 * 60 * 60}; SameSite=Lax`
       setAuthState('success')
       setTimeout(() => router.push('/'), 1000)
     } catch (err: any) {
@@ -116,6 +120,8 @@ export default function LoginPage() {
 
       localStorage.setItem('token', res.data.token)
       localStorage.setItem('user', JSON.stringify(res.data.user))
+      // Set cookie for middleware auth check
+      document.cookie = `token=${res.data.token}; path=/; max-age=${30 * 24 * 60 * 60}; SameSite=Lax`
       setAuthState('success')
       setTimeout(() => router.push('/'), 1000)
     } catch (err: any) {
