@@ -340,7 +340,7 @@ export default function AgentPage() {
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col p-3 md:p-6 min-h-0">
+      <div className="flex-1 flex flex-col p-3 md:p-6 min-h-0 min-w-0 overflow-hidden">
         {/* Header */}
         <div className="flex items-center gap-3 mb-4 md:mb-6">
           <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl gradient-ember flex items-center justify-center glow-core">
