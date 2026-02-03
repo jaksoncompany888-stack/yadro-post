@@ -188,7 +188,7 @@ export default function LoginPage() {
   }, [mode])
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4 relative">
+    <div className="min-h-screen bg-background flex items-start md:items-center justify-center p-4 py-8 relative overflow-auto">
       {/* Theme Toggle */}
       <button
         onClick={toggleTheme}
