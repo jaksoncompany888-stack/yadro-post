@@ -196,6 +196,24 @@ CREATE TABLE IF NOT EXISTS notes (
 CREATE INDEX IF NOT EXISTS idx_notes_user_id ON notes(user_id);
 CREATE INDEX IF NOT EXISTS idx_notes_pinned ON notes(user_id, is_pinned);
 
+-- User channels (каналы для постинга)
+CREATE TABLE IF NOT EXISTS user_channels (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    platform TEXT NOT NULL DEFAULT 'telegram',
+    channel_id TEXT NOT NULL,
+    name TEXT,
+    username TEXT,
+    subscribers INTEGER DEFAULT 0,
+    is_valid INTEGER DEFAULT 1,
+    can_post INTEGER DEFAULT 1,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(user_id, platform, channel_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_channels_user ON user_channels(user_id);
+
 -- View for tasks with user info
 CREATE VIEW IF NOT EXISTS tasks_with_user AS
 SELECT 

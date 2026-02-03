@@ -14,7 +14,8 @@ from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, Depends
 
 from app.providers import TelegramProvider, Platform
-from .deps import get_current_user
+from app.storage.database import Database
+from .deps import get_current_user, get_db
 
 
 router = APIRouter(prefix="/user-channels", tags=["user-channels"])
@@ -32,6 +33,7 @@ class UserChannelCreate(BaseModel):
 
 class UserChannelInfo(BaseModel):
     """Информация о канале пользователя."""
+    id: Optional[int] = None
     platform: str
     channel_id: str
     name: str
@@ -49,8 +51,73 @@ class ValidateResponse(BaseModel):
     channel_info: Optional[UserChannelInfo] = None
 
 
-# In-memory storage (TODO: сохранять в БД)
-user_posting_channels: dict = {}  # user_id -> [UserChannelInfo]
+# =============================================================================
+# Database helpers
+# =============================================================================
+
+def _ensure_table(db: Database):
+    """Ensure user_channels table exists."""
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS user_channels (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            platform TEXT NOT NULL DEFAULT 'telegram',
+            channel_id TEXT NOT NULL,
+            name TEXT,
+            username TEXT,
+            subscribers INTEGER DEFAULT 0,
+            is_valid INTEGER DEFAULT 1,
+            can_post INTEGER DEFAULT 1,
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now')),
+            UNIQUE(user_id, platform, channel_id)
+        )
+    """)
+
+
+def _get_user_channels(db: Database, user_id: int) -> List[UserChannelInfo]:
+    """Get all channels for user from database."""
+    _ensure_table(db)
+    rows = db.fetch_all(
+        """SELECT id, platform, channel_id, name, username, subscribers, is_valid, can_post
+           FROM user_channels WHERE user_id = ?""",
+        (user_id,)
+    )
+    return [
+        UserChannelInfo(
+            id=row["id"],
+            platform=row["platform"],
+            channel_id=row["channel_id"],
+            name=row["name"] or row["channel_id"],
+            username=row["username"],
+            subscribers=row["subscribers"] or 0,
+            is_valid=bool(row["is_valid"]),
+            can_post=bool(row["can_post"]),
+        )
+        for row in rows
+    ]
+
+
+def _save_channel(db: Database, user_id: int, channel: UserChannelInfo):
+    """Save or update channel in database."""
+    _ensure_table(db)
+    db.execute(
+        """INSERT OR REPLACE INTO user_channels
+           (user_id, platform, channel_id, name, username, subscribers, is_valid, can_post, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))""",
+        (user_id, channel.platform, channel.channel_id, channel.name,
+         channel.username, channel.subscribers, int(channel.is_valid), int(channel.can_post))
+    )
+
+
+def _delete_channel(db: Database, user_id: int, channel_id: str):
+    """Delete channel from database."""
+    _ensure_table(db)
+    # Try with and without @
+    db.execute(
+        "DELETE FROM user_channels WHERE user_id = ? AND (channel_id = ? OR channel_id = ?)",
+        (user_id, channel_id, f"@{channel_id.lstrip('@')}")
+    )
 
 
 # =============================================================================
@@ -58,18 +125,22 @@ user_posting_channels: dict = {}  # user_id -> [UserChannelInfo]
 # =============================================================================
 
 @router.get("", response_model=List[UserChannelInfo])
-async def list_user_channels(user: dict = Depends(get_current_user)):
+async def list_user_channels(
+    user: dict = Depends(get_current_user),
+    db: Database = Depends(get_db)
+):
     """
     Список каналов пользователя для постинга.
     """
     user_id = user["id"]
-    return user_posting_channels.get(user_id, [])
+    return _get_user_channels(db, user_id)
 
 
 @router.post("/add", response_model=ValidateResponse)
 async def add_user_channel(
     data: UserChannelCreate,
-    user: dict = Depends(get_current_user)
+    user: dict = Depends(get_current_user),
+    db: Database = Depends(get_db)
 ):
     """
     Добавить канал для постинга.
@@ -125,14 +196,8 @@ async def add_user_channel(
                 can_post=True,
             )
 
-            # Сохраняем
-            if user_id not in user_posting_channels:
-                user_posting_channels[user_id] = []
-
-            # Проверяем дубликат
-            existing = [c for c in user_posting_channels[user_id] if c.channel_id == channel_id]
-            if not existing:
-                user_posting_channels[user_id].append(user_channel)
+            # Сохраняем в базу
+            _save_channel(db, user_id, user_channel)
 
             return ValidateResponse(
                 valid=True,
@@ -168,7 +233,8 @@ async def add_user_channel(
 @router.delete("/{channel_id}")
 async def remove_user_channel(
     channel_id: str,
-    user: dict = Depends(get_current_user)
+    user: dict = Depends(get_current_user),
+    db: Database = Depends(get_db)
 ):
     """Удалить канал из списка постинга."""
     user_id = user["id"]
@@ -177,11 +243,7 @@ async def remove_user_channel(
     from urllib.parse import unquote
     channel_id = unquote(channel_id)
 
-    if user_id in user_posting_channels:
-        user_posting_channels[user_id] = [
-            c for c in user_posting_channels[user_id]
-            if c.channel_id != channel_id and c.channel_id != f"@{channel_id}"
-        ]
+    _delete_channel(db, user_id, channel_id)
 
     return {"status": "removed", "channel_id": channel_id}
 
