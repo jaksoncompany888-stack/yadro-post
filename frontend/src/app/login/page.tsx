@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Send, Loader2, CheckCircle, AlertCircle, Mail, Lock, User, Eye, EyeOff } from 'lucide-react'
+import { Send, Loader2, CheckCircle, AlertCircle, Mail, Lock, User, Eye, EyeOff, Sun, Moon } from 'lucide-react'
 import { authApi } from '@/lib/api'
 
 type AuthMode = 'login' | 'register'
@@ -22,6 +22,29 @@ export default function LoginPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
+  const [isDark, setIsDark] = useState(true)
+
+  // Load theme
+  useEffect(() => {
+    const saved = localStorage.getItem('yadro-theme')
+    if (saved === 'light') {
+      setIsDark(false)
+      document.documentElement.classList.add('light')
+    }
+  }, [])
+
+  // Toggle theme
+  const toggleTheme = () => {
+    const newIsDark = !isDark
+    setIsDark(newIsDark)
+    if (newIsDark) {
+      document.documentElement.classList.remove('light')
+      localStorage.setItem('yadro-theme', 'dark')
+    } else {
+      document.documentElement.classList.add('light')
+      localStorage.setItem('yadro-theme', 'light')
+    }
+  }
 
   // Check if already logged in
   useEffect(() => {
@@ -165,7 +188,16 @@ export default function LoginPage() {
   }, [mode])
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4 relative">
+      {/* Theme Toggle */}
+      <button
+        onClick={toggleTheme}
+        className="absolute top-4 right-4 p-3 rounded-xl bg-card border border-border text-muted-foreground hover:text-foreground transition-colors"
+        title={isDark ? 'Светлая тема' : 'Тёмная тема'}
+      >
+        {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+      </button>
+
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">

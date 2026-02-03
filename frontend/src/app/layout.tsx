@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { Providers } from '@/components/providers'
-import { Sidebar } from '@/components/sidebar'
+import { LayoutWrapper } from '@/components/layout-wrapper'
 
 const inter = Inter({ subsets: ['latin', 'cyrillic'] })
 
@@ -20,12 +20,9 @@ export default function RootLayout({
     <html lang="ru" className="dark">
       <body className={inter.className}>
         <Providers>
-          <div className="flex h-screen">
-            <Sidebar />
-            <main className="flex-1 overflow-auto pb-20 md:pb-0">
-              {children}
-            </main>
-          </div>
+          <LayoutWrapper>
+            {children}
+          </LayoutWrapper>
         </Providers>
       </body>
     </html>

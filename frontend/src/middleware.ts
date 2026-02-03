@@ -16,9 +16,15 @@ function isPublicPath(pathname: string): boolean {
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+  const host = request.headers.get('host') || ''
 
   // Пропускаем публичные пути
   if (isPublicPath(pathname)) {
+    return NextResponse.next()
+  }
+
+  // Для локальной разработки (localhost) — пропускаем авторизацию
+  if (host.includes('localhost') || host.includes('127.0.0.1')) {
     return NextResponse.next()
   }
 
