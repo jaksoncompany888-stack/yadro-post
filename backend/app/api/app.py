@@ -18,6 +18,7 @@ from .user_channels import router as user_channels_router
 from .notes import router as notes_router
 from .users import router as users_router
 from .auth import router as auth_router
+from .resources import router as resources_router
 from .deps import get_db
 
 
@@ -124,6 +125,7 @@ def create_app() -> FastAPI:
     app.include_router(user_channels_router, prefix="/api")
     app.include_router(notes_router, prefix="/api")
     app.include_router(users_router, prefix="/api")
+    app.include_router(resources_router, prefix="/api")
 
     # Health check
     @app.get("/health")
@@ -144,6 +146,7 @@ def create_app() -> FastAPI:
                 "user_channels": "/api/user-channels",
                 "notes": "/api/notes",
                 "users": "/api/users",
+                "resources": "/api/resources",
                 "generate": "/api/posts/generate",
                 "edit": "/api/posts/edit",
                 "analyze": "/api/channels/analyze",

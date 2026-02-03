@@ -153,3 +153,23 @@ export const draftsApi = {
   create: (data: { text: string; topic?: string }) =>
     api.post('/api/posts', { ...data, status: 'draft' }),
 }
+
+// Ресурсы пользователя (свой канал + конкуренты)
+export const resourcesApi = {
+  // Сводка
+  summary: () => api.get('/api/resources/summary'),
+
+  // Мой канал
+  getMyChannel: () => api.get('/api/resources/my-channel'),
+  setMyChannel: (channel: string) =>
+    api.post('/api/resources/my-channel', { channel }),
+  analyzeMyChannel: () => api.post('/api/resources/my-channel/analyze'),
+
+  // Конкуренты
+  listCompetitors: () => api.get('/api/resources/competitors'),
+  addCompetitor: (channel: string, autoAnalyze: boolean = true) =>
+    api.post('/api/resources/competitors', { channel, auto_analyze: autoAnalyze }),
+  removeCompetitor: (id: number) => api.delete(`/api/resources/competitors/${id}`),
+  analyzeCompetitor: (id: number) =>
+    api.post(`/api/resources/competitors/${id}/analyze`),
+}

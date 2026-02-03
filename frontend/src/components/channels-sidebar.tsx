@@ -1,142 +1,82 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, X, Loader2, Check, Send, Link2 } from 'lucide-react'
-import { clsx } from 'clsx'
-import { userChannelsApi } from '@/lib/api'
+import { Plus, X, Loader2, Check, RefreshCw, Users, User, BarChart3 } from 'lucide-react'
+import { resourcesApi } from '@/lib/api'
 
-// Все поддерживаемые платформы
-const PLATFORMS = [
-  {
-    id: 'telegram',
-    name: 'Telegram',
-    color: 'bg-[#0088cc]',
-    icon: '✈️',
-    connectType: 'bot', // Требуется добавить бота
-    placeholder: '@username или ссылка',
-    hint: 'Бот @Yadro888_bot должен быть администратором канала',
-  },
-  {
-    id: 'vk',
-    name: 'VK',
-    color: 'bg-[#4a76a8]',
-    icon: '💙',
-    connectType: 'oauth', // OAuth авторизация
-    placeholder: 'Ссылка на группу',
-    hint: 'Требуется авторизация ВКонтакте',
-  },
-  {
-    id: 'instagram',
-    name: 'Instagram',
-    color: 'bg-gradient-to-r from-[#833ab4] via-[#fd1d1d] to-[#fcb045]',
-    icon: '📸',
-    connectType: 'link', // Просто ссылка
-    placeholder: '@username или ссылка',
-    hint: 'Укажите ссылку на профиль',
-  },
-  {
-    id: 'tiktok',
-    name: 'TikTok',
-    color: 'bg-black',
-    icon: '🎵',
-    connectType: 'link',
-    placeholder: '@username или ссылка',
-    hint: 'Укажите ссылку на профиль',
-  },
-  {
-    id: 'youtube',
-    name: 'YouTube',
-    color: 'bg-[#ff0000]',
-    icon: '▶️',
-    connectType: 'link',
-    placeholder: 'Ссылка на канал',
-    hint: 'Укажите ссылку на канал',
-  },
-  {
-    id: 'facebook',
-    name: 'Facebook',
-    color: 'bg-[#1877f2]',
-    icon: '👍',
-    connectType: 'link',
-    placeholder: 'Ссылка на страницу',
-    hint: 'Укажите ссылку на страницу',
-  },
-  {
-    id: 'ok',
-    name: 'OK',
-    color: 'bg-[#ee8208]',
-    icon: '🟠',
-    connectType: 'link',
-    placeholder: 'Ссылка на группу',
-    hint: 'Укажите ссылку на группу',
-  },
-]
+interface MyChannel {
+  channel: string | null
+  name: string | null
+  analyzed: boolean
+  temperature: number | null
+}
 
-interface UserChannel {
-  platform: string
-  channel_id: string
-  name: string
-  username?: string
-  subscribers: number
-  is_valid: boolean
-  can_post: boolean
+interface Competitor {
+  id: number
+  channel: string
+  analyzed: boolean
+  temperature: number | null
 }
 
 export function ChannelsSidebar() {
-  const [channels, setChannels] = useState<UserChannel[]>([])
-  const [selectedChannels, setSelectedChannels] = useState<string[]>([])
+  const [myChannel, setMyChannel] = useState<MyChannel | null>(null)
+  const [competitors, setCompetitors] = useState<Competitor[]>([])
   const [loading, setLoading] = useState(true)
-  const [showAddModal, setShowAddModal] = useState(false)
+  const [showAddModal, setShowAddModal] = useState<'channel' | 'competitor' | null>(null)
+  const [analyzing, setAnalyzing] = useState<string | null>(null)
 
   useEffect(() => {
-    loadChannels()
+    loadResources()
   }, [])
 
-  const loadChannels = async () => {
+  const loadResources = async () => {
     try {
-      const response = await userChannelsApi.list()
-      const data = response.data || []
-      setChannels(data)
-      setSelectedChannels(data.map((ch: UserChannel) => ch.channel_id))
+      const [channelRes, competitorsRes] = await Promise.all([
+        resourcesApi.getMyChannel(),
+        resourcesApi.listCompetitors(),
+      ])
+      setMyChannel(channelRes.data)
+      setCompetitors(competitorsRes.data || [])
     } catch (err) {
-      console.error('Failed to load channels:', err)
+      console.error('Failed to load resources:', err)
     } finally {
       setLoading(false)
     }
   }
 
-  const toggleChannel = (channelId: string) => {
-    setSelectedChannels(prev =>
-      prev.includes(channelId)
-        ? prev.filter(id => id !== channelId)
-        : [...prev, channelId]
-    )
-  }
-
-  const removeChannel = async (channelId: string) => {
+  const removeCompetitor = async (id: number) => {
     try {
-      await userChannelsApi.remove(channelId)
-      setChannels(prev => prev.filter(ch => ch.channel_id !== channelId))
-      setSelectedChannels(prev => prev.filter(id => id !== channelId))
+      await resourcesApi.removeCompetitor(id)
+      setCompetitors(prev => prev.filter(c => c.id !== id))
     } catch (err) {
-      console.error('Failed to remove channel:', err)
+      console.error('Failed to remove competitor:', err)
     }
   }
 
-  const handleChannelAdded = (channel: UserChannel) => {
-    setChannels(prev => [...prev, channel])
-    setSelectedChannels(prev => [...prev, channel.channel_id])
-    setShowAddModal(false)
+  const analyzeChannel = async (type: 'my' | 'competitor', id?: number) => {
+    const key = type === 'my' ? 'my-channel' : `comp-${id}`
+    setAnalyzing(key)
+    try {
+      if (type === 'my') {
+        await resourcesApi.analyzeMyChannel()
+        const res = await resourcesApi.getMyChannel()
+        setMyChannel(res.data)
+      } else if (id) {
+        await resourcesApi.analyzeCompetitor(id)
+        const res = await resourcesApi.listCompetitors()
+        setCompetitors(res.data || [])
+      }
+    } catch (err) {
+      console.error('Failed to analyze:', err)
+    } finally {
+      setAnalyzing(null)
+    }
   }
 
-  const formatNumber = (num: number) => {
-    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M'
-    if (num >= 1000) return (num / 1000).toFixed(1) + 'K'
-    return num.toString()
-  }
-
-  const getPlatformInfo = (platformId: string) => {
-    return PLATFORMS.find(p => p.id === platformId) || PLATFORMS[0]
+  const handleChannelAdded = async () => {
+    setShowAddModal(null)
+    setLoading(true)
+    await loadResources()
   }
 
   return (
@@ -144,7 +84,7 @@ export function ChannelsSidebar() {
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm font-medium">Мои ресурсы</h2>
         <button
-          onClick={() => setShowAddModal(true)}
+          onClick={() => setShowAddModal('channel')}
           className="text-muted-foreground hover:text-primary transition-colors"
           title="Добавить ресурс"
         >
@@ -156,86 +96,132 @@ export function ChannelsSidebar() {
         <div className="flex-1 flex items-center justify-center">
           <Loader2 className="w-6 h-6 animate-spin text-primary" />
         </div>
-      ) : channels.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-center px-2">
-          <div className="text-muted-foreground text-sm mb-4">
-            Ресурсов пока нет
-          </div>
-          <p className="text-xs text-muted-foreground mb-4">
-            Подключите свои соцсети для публикации контента
-          </p>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="px-4 py-2 btn-core text-white rounded-lg text-sm"
-          >
-            Добавить ресурс
-          </button>
-        </div>
       ) : (
-        <div className="flex-1 space-y-2 overflow-auto">
-          {channels.map((channel) => {
-            const platform = getPlatformInfo(channel.platform)
-            return (
-              <div key={channel.channel_id} className="relative group">
-                <button
-                  onClick={() => toggleChannel(channel.channel_id)}
-                  className={clsx(
-                    'w-full flex items-center gap-3 p-2 rounded-lg transition-all',
-                    selectedChannels.includes(channel.channel_id)
-                      ? 'bg-primary/20 text-foreground'
-                      : 'hover:bg-secondary text-muted-foreground'
-                  )}
-                >
-                  <div className={clsx(
-                    'w-8 h-8 rounded-full flex items-center justify-center text-white text-sm',
-                    platform.color
-                  )}>
-                    {platform.icon}
+        <div className="flex-1 space-y-4 overflow-auto">
+          {/* Мой канал */}
+          <div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+              <User className="w-3 h-3" />
+              <span>Мой канал</span>
+            </div>
+            {myChannel?.channel ? (
+              <div className="relative group">
+                <div className="flex items-center gap-3 p-2 rounded-lg bg-primary/10 border border-primary/20">
+                  <div className="w-8 h-8 rounded-full bg-[#0088cc] flex items-center justify-center text-white text-sm">
+                    T
                   </div>
-                  <div className="flex-1 text-left min-w-0">
-                    <div className="text-sm truncate">{channel.name}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm truncate">{myChannel.channel}</div>
                     <div className="text-xs text-muted-foreground flex items-center gap-1">
-                      <span>{platform.name}</span>
-                      {channel.subscribers > 0 && (
+                      {myChannel.analyzed ? (
                         <>
-                          <span>•</span>
-                          <span>{formatNumber(channel.subscribers)}</span>
+                          <Check className="w-3 h-3 text-green-500" />
+                          <span>t={myChannel.temperature?.toFixed(2)}</span>
                         </>
+                      ) : (
+                        <span className="text-yellow-500">Не анализирован</span>
                       )}
                     </div>
                   </div>
-                  {selectedChannels.includes(channel.channel_id) && (
-                    <Check className="w-4 h-4 text-primary" />
-                  )}
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    removeChannel(channel.channel_id)
-                  }}
-                  className="absolute top-1 right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                  title="Удалить ресурс"
-                >
-                  <X className="w-3 h-3 text-white" />
-                </button>
+                  <button
+                    onClick={() => analyzeChannel('my')}
+                    disabled={analyzing === 'my-channel'}
+                    className="p-1 rounded hover:bg-secondary"
+                    title="Переанализировать"
+                  >
+                    {analyzing === 'my-channel' ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4 text-muted-foreground" />
+                    )}
+                  </button>
+                </div>
               </div>
-            )
-          })}
+            ) : (
+              <button
+                onClick={() => setShowAddModal('channel')}
+                className="w-full flex items-center gap-3 p-2 rounded-lg border border-dashed border-border hover:border-primary/50 text-muted-foreground hover:text-foreground transition-all"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="text-sm">Добавить канал</span>
+              </button>
+            )}
+          </div>
 
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="w-full flex items-center gap-3 p-2 rounded-lg text-muted-foreground hover:text-primary transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            <span className="text-sm">Добавить</span>
-          </button>
+          {/* Конкуренты */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Users className="w-3 h-3" />
+                <span>Конкуренты ({competitors.length})</span>
+              </div>
+              <button
+                onClick={() => setShowAddModal('competitor')}
+                className="text-muted-foreground hover:text-primary"
+              >
+                <Plus className="w-3 h-3" />
+              </button>
+            </div>
+
+            {competitors.length === 0 ? (
+              <button
+                onClick={() => setShowAddModal('competitor')}
+                className="w-full flex items-center gap-3 p-2 rounded-lg border border-dashed border-border hover:border-primary/50 text-muted-foreground hover:text-foreground transition-all text-sm"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Добавить конкурента</span>
+              </button>
+            ) : (
+              <div className="space-y-1">
+                {competitors.map((comp) => (
+                  <div key={comp.id} className="relative group">
+                    <div className="flex items-center gap-2 p-2 rounded-lg hover:bg-secondary/50">
+                      <div className="w-6 h-6 rounded-full bg-secondary flex items-center justify-center text-xs">
+                        <BarChart3 className="w-3 h-3" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm truncate">{comp.channel}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {comp.analyzed ? (
+                            <span className="text-green-500">t={comp.temperature?.toFixed(2)}</span>
+                          ) : (
+                            <span className="text-yellow-500">...</span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => analyzeChannel('competitor', comp.id)}
+                        disabled={analyzing === `comp-${comp.id}`}
+                        className="p-1 rounded hover:bg-secondary opacity-0 group-hover:opacity-100"
+                        title="Переанализировать"
+                      >
+                        {analyzing === `comp-${comp.id}` ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <RefreshCw className="w-3 h-3 text-muted-foreground" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => removeCompetitor(comp.id)}
+                        className="p-1 rounded hover:bg-red-500/20 opacity-0 group-hover:opacity-100"
+                        title="Удалить"
+                      >
+                        <X className="w-3 h-3 text-red-400" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
       {showAddModal && (
         <AddResourceModal
-          onClose={() => setShowAddModal(false)}
-          onChannelAdded={handleChannelAdded}
+          type={showAddModal}
+          onClose={() => setShowAddModal(null)}
+          onAdded={handleChannelAdded}
         />
       )}
     </div>
@@ -243,59 +229,35 @@ export function ChannelsSidebar() {
 }
 
 function AddResourceModal({
+  type,
   onClose,
-  onChannelAdded,
+  onAdded,
 }: {
+  type: 'channel' | 'competitor'
   onClose: () => void
-  onChannelAdded: (channel: UserChannel) => void
+  onAdded: () => void
 }) {
-  const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null)
   const [channelInput, setChannelInput] = useState('')
-  const [channelName, setChannelName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const platform = selectedPlatform ? PLATFORMS.find(p => p.id === selectedPlatform) : null
+  const isMyChannel = type === 'channel'
 
-  const addChannel = async () => {
-    if (!channelInput.trim() || !selectedPlatform) return
+  const handleAdd = async () => {
+    if (!channelInput.trim()) return
 
     setLoading(true)
     setError('')
 
     try {
-      // Для Telegram используем API валидации
-      if (selectedPlatform === 'telegram') {
-        const response = await userChannelsApi.add(channelInput, selectedPlatform)
-        if (response.data.valid && response.data.channel_info) {
-          onChannelAdded(response.data.channel_info)
-        } else {
-          setError(response.data.error || 'Не удалось добавить канал')
-        }
+      if (isMyChannel) {
+        await resourcesApi.setMyChannel(channelInput.trim())
       } else {
-        // Для других платформ просто сохраняем ссылку
-        const response = await userChannelsApi.add(channelInput, selectedPlatform)
-        if (response.data.channel_info) {
-          onChannelAdded({
-            ...response.data.channel_info,
-            name: channelName || channelInput,
-          })
-        } else if (response.data.valid !== false) {
-          // Если API не возвращает channel_info, создаем локально
-          onChannelAdded({
-            platform: selectedPlatform,
-            channel_id: channelInput,
-            name: channelName || channelInput,
-            subscribers: 0,
-            is_valid: true,
-            can_post: selectedPlatform === 'telegram' || selectedPlatform === 'vk',
-          })
-        } else {
-          setError(response.data.error || 'Не удалось добавить ресурс')
-        }
+        await resourcesApi.addCompetitor(channelInput.trim(), true)
       }
+      onAdded()
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Ошибка добавления ресурса')
+      setError(err.response?.data?.detail || 'Ошибка добавления')
     } finally {
       setLoading(false)
     }
@@ -303,153 +265,71 @@ function AddResourceModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-card rounded-xl p-6 w-[420px] max-h-[90vh] overflow-auto border border-border shadow-2xl">
+      <div className="bg-card rounded-xl p-6 w-[380px] border border-border shadow-2xl">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold">
-            {selectedPlatform ? `Добавить ${platform?.name}` : 'Добавить ресурс'}
+            {isMyChannel ? 'Мой канал' : 'Добавить конкурента'}
           </h3>
           <button onClick={onClose} className="p-1 rounded hover:bg-secondary">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {!selectedPlatform ? (
-          // Выбор платформы
-          <div className="grid grid-cols-2 gap-3">
-            {PLATFORMS.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => setSelectedPlatform(p.id)}
-                className="flex items-center gap-3 p-4 rounded-xl border border-border hover:border-primary/50 hover:bg-secondary/50 transition-all"
-              >
-                <div className={clsx(
-                  'w-10 h-10 rounded-full flex items-center justify-center text-white text-lg',
-                  p.color
-                )}>
-                  {p.icon}
-                </div>
-                <div className="text-left">
-                  <div className="font-medium">{p.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {p.connectType === 'bot' && 'Через бота'}
-                    {p.connectType === 'oauth' && 'Авторизация'}
-                    {p.connectType === 'link' && 'По ссылке'}
-                  </div>
-                </div>
-              </button>
-            ))}
+        <p className="text-sm text-muted-foreground mb-4">
+          {isMyChannel
+            ? 'Укажите ваш Telegram канал для анализа стиля и генерации постов в вашем стиле.'
+            : 'Укажите канал конкурента для анализа его стиля и вдохновения.'}
+        </p>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Канал
+            </label>
+            <input
+              type="text"
+              placeholder="@username"
+              value={channelInput}
+              onChange={(e) => setChannelInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+              className="w-full bg-input rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary"
+              autoFocus
+            />
           </div>
-        ) : (
-          // Форма добавления
-          <div className="space-y-4">
+
+          {error && (
+            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
+              {error}
+            </div>
+          )}
+
+          <div className="bg-secondary/50 rounded-lg p-3 text-xs text-muted-foreground">
+            После добавления канал будет автоматически проанализирован. Это займёт ~10-20 секунд.
+          </div>
+
+          <div className="flex gap-3 pt-2">
             <button
-              onClick={() => setSelectedPlatform(null)}
-              className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1"
+              onClick={onClose}
+              className="flex-1 py-3 text-muted-foreground hover:text-foreground transition-colors"
             >
-              ← Выбрать другую платформу
+              Отмена
             </button>
-
-            <div className="flex items-center gap-3 p-3 bg-secondary/50 rounded-lg">
-              <div className={clsx(
-                'w-10 h-10 rounded-full flex items-center justify-center text-white text-lg',
-                platform?.color
-              )}>
-                {platform?.icon}
-              </div>
-              <div>
-                <div className="font-medium">{platform?.name}</div>
-                <div className="text-xs text-muted-foreground">
-                  {platform?.connectType === 'bot' && 'Подключение через бота'}
-                  {platform?.connectType === 'oauth' && 'OAuth авторизация'}
-                  {platform?.connectType === 'link' && 'Добавление по ссылке'}
-                </div>
-              </div>
-            </div>
-
-            {platform?.connectType === 'link' && (
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Название (необязательно)
-                </label>
-                <input
-                  type="text"
-                  placeholder="Мой канал"
-                  value={channelName}
-                  onChange={(e) => setChannelName(e.target.value)}
-                  className="w-full bg-input rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-            )}
-
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                {platform?.connectType === 'bot' ? 'Канал' : 'Ссылка'}
-              </label>
-              <input
-                type="text"
-                placeholder={platform?.placeholder}
-                value={channelInput}
-                onChange={(e) => setChannelInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && addChannel()}
-                className="w-full bg-input rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary"
-                autoFocus
-              />
-              <p className="text-xs text-muted-foreground mt-2">
-                {platform?.hint}
-              </p>
-            </div>
-
-            {error && (
-              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
-                {error}
-              </div>
-            )}
-
-            {platform?.connectType === 'bot' && (
-              <div className="bg-secondary/50 rounded-lg p-4 text-sm">
-                <div className="font-medium mb-2">Как добавить бота:</div>
-                <ol className="list-decimal list-inside space-y-1 text-muted-foreground text-xs">
-                  <li>Откройте настройки канала</li>
-                  <li>Администраторы → Добавить</li>
-                  <li>Найдите @Yadro888_bot</li>
-                  <li>Дайте права "Публикация сообщений"</li>
-                </ol>
-              </div>
-            )}
-
-            {platform?.connectType === 'oauth' && (
-              <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 text-sm">
-                <div className="flex items-center gap-2 text-blue-400 mb-2">
-                  <Link2 className="w-4 h-4" />
-                  <span className="font-medium">Авторизация</span>
-                </div>
-                <p className="text-muted-foreground text-xs">
-                  Для автопостинга в VK потребуется авторизация. Пока можно добавить ссылку для планирования контента.
-                </p>
-              </div>
-            )}
-
-            <div className="flex gap-3 pt-2">
-              <button
-                onClick={onClose}
-                className="flex-1 py-3 text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Отмена
-              </button>
-              <button
-                onClick={addChannel}
-                disabled={loading || !channelInput.trim()}
-                className="flex-1 py-3 btn-core text-white rounded-lg disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {loading ? (
+            <button
+              onClick={handleAdd}
+              disabled={loading || !channelInput.trim()}
+              className="flex-1 py-3 btn-core text-white rounded-lg disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  'Добавить'
-                )}
-              </button>
-            </div>
+                  <span>Анализ...</span>
+                </>
+              ) : (
+                'Добавить'
+              )}
+            </button>
           </div>
-        )}
+        </div>
       </div>
     </div>
   )
