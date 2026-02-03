@@ -276,7 +276,7 @@ export default function AgentPage() {
   ]
 
   return (
-    <div className="h-full flex">
+    <div className="h-full flex flex-col md:flex-row">
       {/* Chat History Sidebar - hidden on mobile */}
       <div className="hidden md:flex w-64 border-r border-border p-4 flex-col">
         <div className="flex items-center justify-between mb-4">
@@ -340,7 +340,7 @@ export default function AgentPage() {
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col p-3 md:p-6">
+      <div className="flex-1 flex flex-col p-3 md:p-6 min-h-0">
         {/* Header */}
         <div className="flex items-center gap-3 mb-4 md:mb-6">
           <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl gradient-ember flex items-center justify-center glow-core">
@@ -353,7 +353,7 @@ export default function AgentPage() {
         </div>
 
         {/* Chat area */}
-        <div className="flex-1 bg-card rounded-xl border border-border overflow-hidden flex flex-col min-w-0">
+        <div className="flex-1 bg-card rounded-xl border border-border overflow-hidden flex flex-col min-w-0 min-h-0">
           {/* Messages */}
           <div className="flex-1 overflow-auto p-3 md:p-6 space-y-3 md:space-y-4">
             {messages.map((message) => (
