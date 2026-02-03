@@ -359,13 +359,13 @@ export default function AgentPage() {
             {messages.map((message) => (
               <div
                 key={message.id}
-                className={`max-w-[90%] md:max-w-[80%] rounded-xl ${
+                className={`max-w-[90%] md:max-w-[80%] rounded-xl overflow-hidden ${
                   message.role === 'user'
                     ? 'ml-auto bg-gradient-ember text-white p-3 md:p-4'
                     : 'bg-secondary p-3 md:p-4'
                 }`}
               >
-                <p className="whitespace-pre-wrap break-words text-sm md:text-base">{message.content}</p>
+                <p className="whitespace-pre-wrap break-words text-sm md:text-base overflow-hidden">{message.content}</p>
 
                 {/* Hashtags */}
                 {message.hashtags && message.hashtags.length > 0 && (
