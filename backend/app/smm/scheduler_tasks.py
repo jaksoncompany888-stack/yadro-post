@@ -10,6 +10,10 @@ from app.storage import Database
 from app.llm import LLMService
 from app.smm.agent import SMMAgent
 
+from app.config.logging import get_logger
+
+logger = get_logger("smm.scheduler")
+
 
 class SMMScheduler:
     """Фоновый планировщик для SMM агента"""
@@ -28,7 +32,7 @@ class SMMScheduler:
     async def start(self):
         """Запустить фоновый мониторинг"""
         self._running = True
-        print(f"[Scheduler] Запущен. Интервал: {self.check_interval} сек")
+        logger.info("Started. Check interval: %s sec", self.check_interval)
 
         # При старте — очистить застрявшие задачи
         self._cleanup_stuck_tasks()
@@ -75,7 +79,7 @@ class SMMScheduler:
         )
 
         if total > 0:
-            print(f"[Scheduler] Очищено застрявших задач: {total}")
+            logger.info("Cleaned up %s stuck tasks", total)
 
     async def _run_loop(self):
         """Основной цикл планировщика"""
@@ -83,7 +87,7 @@ class SMMScheduler:
             try:
                 await self._run_scheduled_tasks()
             except Exception as e:
-                print(f"[Scheduler] Ошибка: {e}")
+                logger.error("Loop error: %s", e, exc_info=True)
 
             await asyncio.sleep(self.check_interval)
 
@@ -155,10 +159,10 @@ class SMMScheduler:
                         parse_mode=None
                     )
 
-                print(f"[Scheduler] Опубликован отложенный пост {draft_id}")
+                logger.info("Published scheduled draft %s", draft_id)
 
             except Exception as e:
-                print(f"[Scheduler] Ошибка публикации поста {draft_id}: {e}")
+                logger.error("Error publishing draft %s: %s", draft_id, e, exc_info=True)
                 # Помечаем как ошибку
                 self.db.execute(
                     "UPDATE drafts SET status = 'error' WHERE id = ?",
@@ -198,9 +202,9 @@ class SMMScheduler:
                             f"🔥 Утренний дайджест горячих тем:\n\n{ideas[:3500]}",
                             parse_mode=None
                         )
-                        print(f"[Scheduler] Отправлен дайджест пользователю {user_id}")
+                        logger.info("Sent news digest to user %s", user_id)
             except Exception as e:
-                print(f"[Scheduler] Ошибка сканирования для {user_id}: {e}")
+                logger.error("Scan error for user %s: %s", user_id, e, exc_info=True)
 
     async def _evening_ideas(self):
         """Вечерние идеи для постов"""
@@ -234,9 +238,9 @@ class SMMScheduler:
                             f"💡 Идеи для постов на завтра:\n\n{ideas[:3500]}",
                             parse_mode=None
                         )
-                        print(f"[Scheduler] Отправлены идеи пользователю {user_id}")
+                        logger.info("Sent ideas to user %s", user_id)
             except Exception as e:
-                print(f"[Scheduler] Ошибка идей для {user_id}: {e}")
+                logger.error("Ideas error for user %s: %s", user_id, e, exc_info=True)
 
     async def _weekly_report(self):
         """Воскресный недельный отчёт"""
@@ -275,9 +279,9 @@ class SMMScheduler:
                             f"📊 Недельный отчёт:\n\n{report[:3500]}",
                             parse_mode=None
                         )
-                        print(f"[Scheduler] Отправлен отчёт пользователю {user_id}")
+                        logger.info("Sent weekly report to user %s", user_id)
             except Exception as e:
-                print(f"[Scheduler] Ошибка отчёта для {user_id}: {e}")
+                logger.error("Weekly report error for user %s: %s", user_id, e, exc_info=True)
 
     async def _channels_background_scan(self):
         """Фоновый скан каналов раз в 3 дня — тихо, без уведомлений"""
@@ -309,7 +313,7 @@ class SMMScheduler:
         if not channels:
             return
 
-        print(f"[Scheduler] Фоновый скан: {len(channels)} каналов")
+        logger.info("Background scan: %s channels", len(channels))
 
         for user_id, content in channels:
             channel = content.replace("Конкурент:", "").strip()
@@ -324,17 +328,17 @@ class SMMScheduler:
                 # 2. Есть новые посты — анализируем через LLM
                 success = self.agent._analyze_channel_via_executor(user_id, channel)
                 if success:
-                    print(f"[Scheduler] Обновлён анализ {channel} для user {user_id}")
+                    logger.info("Updated analysis for %s (user %s)", channel, user_id)
                 else:
                     # Ошибка (возможно лимит) — прекращаем скан
-                    print(f"[Scheduler] Прерываем скан из-за ошибки")
+                    logger.warning("Aborting scan due to error")
                     break
 
                 # Пауза между каналами чтобы не спамить
                 await asyncio.sleep(2)
 
             except Exception as e:
-                print(f"[Scheduler] Ошибка скана {channel}: {e}")
+                logger.error("Scan error for %s: %s", channel, e, exc_info=True)
                 # При любой ошибке прекращаем скан
                 break
 
@@ -359,7 +363,7 @@ class SMMScheduler:
         if not competitors:
             return
 
-        print(f"[Scheduler] Проверка {len(competitors)} каналов на устаревший анализ...")
+        logger.info("Checking %s channels for outdated analysis...", len(competitors))
 
         outdated_count = 0
 
@@ -379,7 +383,7 @@ class SMMScheduler:
             if not analysis:
                 # Нет анализа вообще
                 needs_reanalysis = True
-                print(f"[Scheduler] {channel}: нет анализа")
+                logger.debug("%s: no analysis found", channel)
             else:
                 # Есть анализ — проверяем версию
                 import json
@@ -388,10 +392,10 @@ class SMMScheduler:
                     version = metadata.get("analysis_version", "v1")
                     if version != CURRENT_VERSION:
                         needs_reanalysis = True
-                        print(f"[Scheduler] {channel}: устаревшая версия {version}")
+                        logger.debug("%s: outdated version %s", channel, version)
                 except:
                     needs_reanalysis = True
-                    print(f"[Scheduler] {channel}: битый metadata")
+                    logger.debug("%s: corrupted metadata", channel)
 
             if needs_reanalysis:
                 outdated_count += 1
@@ -399,17 +403,17 @@ class SMMScheduler:
                     # Переанализируем через Executor
                     success = self.agent._analyze_channel_via_executor(user_id, channel)
                     if success:
-                        print(f"[Scheduler] ✓ Переанализирован {channel}")
+                        logger.info("Reanalyzed %s", channel)
                     else:
                         # Ошибка (лимит или другое) — прекращаем переанализ
-                        print(f"[Scheduler] ✗ Прерываем переанализ из-за ошибки")
+                        logger.warning("Aborting reanalysis due to error")
                         break
                     await asyncio.sleep(1)  # Пауза между каналами
                 except Exception as e:
-                    print(f"[Scheduler] ✗ Ошибка переанализа {channel}: {e}")
+                    logger.error("Reanalysis error for %s: %s", channel, e, exc_info=True)
                     break  # При любой ошибке прекращаем
 
         if outdated_count > 0:
-            print(f"[Scheduler] Переанализировано {outdated_count} каналов")
+            logger.info("Reanalyzed %s channels", outdated_count)
         else:
-            print(f"[Scheduler] Все каналы актуальны (версия {CURRENT_VERSION})")
+            logger.info("All channels up to date (version %s)", CURRENT_VERSION)

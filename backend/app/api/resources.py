@@ -17,6 +17,10 @@ from app.api.deps import get_db, get_current_user, get_agent
 from app.storage.database import Database
 from app.smm.agent import SMMAgent
 
+from app.config.logging import get_logger
+
+logger = get_logger("api.resources")
+
 
 router = APIRouter(prefix="/resources", tags=["resources"])
 
@@ -154,7 +158,7 @@ async def set_my_channel(
         agent._analyze_channel_via_executor(user_id, channel)
         analyzed = True
     except Exception as e:
-        print(f"[Resources] Ошибка анализа {channel}: {e}")
+        logger.error("Channel analysis failed for %s: %s", channel, e, exc_info=True)
         analyzed = False
 
     return MyChannelResponse(

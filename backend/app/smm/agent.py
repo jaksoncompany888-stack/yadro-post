@@ -24,6 +24,10 @@ from app.executor.step_executor import ApprovalRequired, _markdown_to_html
 from app.tools.channel_parser import ChannelParser
 from app.tools.news_monitor import NewsMonitor
 
+from app.config.logging import get_logger
+
+logger = get_logger("smm.agent")
+
 
 @dataclass
 class PostDraft:
@@ -112,7 +116,7 @@ class SMMAgent:
             metadata={"aliases": aliases, "channel": channel}
         )
 
-        print(f"[Memory] Добавлен конкурент {channel}, алиасы: {aliases[:3]}...")
+        logger.debug("Added competitor %s, aliases: %s...", channel, aliases[:3])
 
         if auto_analyze:
             self._analyze_channel_via_executor(user_id, channel)
@@ -171,7 +175,7 @@ class SMMAgent:
 
         Returns: True если успешно, False если ошибка
         """
-        print(f"\n[Executor] === Анализ {channel} ===")
+        logger.info("Analyzing channel: %s", channel)
 
         try:
             # Создаём задачу
@@ -203,11 +207,11 @@ class SMMAgent:
             if running_task:
                 self.executor.run_task(running_task)
 
-            print(f"[Executor] === Готово: {channel} ===\n")
+            logger.info("Channel analysis complete: %s", channel)
             return True
 
         except Exception as e:
-            print(f"[Executor] Ошибка анализа {channel}: {e}")
+            logger.error("Channel analysis error for %s: %s", channel, e, exc_info=True)
             return False
 
     def add_news_source(self, user_id: int, url: str, name: str = ""):
@@ -333,7 +337,7 @@ class SMMAgent:
                     meta = json.loads(row[0]) if isinstance(row[0], str) else row[0]
                     temp = meta.get("recommended_temperature")
                     if temp:
-                        print(f"[Temperature] Из собственного канала {own_channel}: {temp}")
+                        logger.debug("Temperature from own channel %s: %s", own_channel, temp)
                         return float(temp)
                 except (json.JSONDecodeError, TypeError):
                     pass
@@ -360,11 +364,11 @@ class SMMAgent:
 
         if temps:
             avg_temp = sum(temps) / len(temps)
-            print(f"[Temperature] Среднее по {len(temps)} каналам: {avg_temp:.2f}")
+            logger.debug("Average temperature from %s channels: %.2f", len(temps), avg_temp)
             return round(avg_temp, 2)
 
         # 3. Default
-        print("[Temperature] Нет данных, используем default 0.5")
+        logger.debug("No temperature data, using default 0.5")
         return 0.5
 
     def _find_relevant_channel_styles(self, user_id: int, topic: str, limit: int = 3) -> List[str]:
@@ -400,10 +404,10 @@ class SMMAgent:
                 (user_id, search_query, limit)
             )
             if results:
-                print(f"[Context] Найдено {len(results)} релевантных стилей по теме: {keywords}")
+                logger.debug("Found %s relevant styles for topic: %s", len(results), keywords)
                 return [r[0] for r in results]
         except Exception as e:
-            print(f"[Context] FTS5 поиск не сработал: {e}")
+            logger.warning("FTS5 search failed: %s", e)
 
         return []
 
@@ -506,7 +510,7 @@ class SMMAgent:
                 if user_id:
                     found_channel = self._find_channel_by_keyword(user_id, keyword)
                     if found_channel:
-                        print(f"[Context] Найден канал '{found_channel}' по слову '{keyword}'")
+                        logger.debug("Found channel %s by keyword %s", found_channel, keyword)
                         return found_channel
 
                 # Fallback: если слово похоже на канал
@@ -546,7 +550,7 @@ class SMMAgent:
                             alias in keyword_lower or
                             keyword_translit in alias or
                             self._fuzzy_match(keyword_lower, alias)):
-                            print(f"[Context] Найден по алиасу: {keyword} → {channel}")
+                            logger.debug("Found by alias: %s -> %s", keyword, channel)
                             return channel
                 except:
                     pass
@@ -691,7 +695,7 @@ class SMMAgent:
             if own_style_row:
                 own_channel_style = own_style_row[0][:600]
                 parts.append(f"ТВОЙ СТИЛЬ (ГЛАВНЫЙ ПРИОРИТЕТ — пиши так!):\n{own_channel_style}")
-                print(f"[Context] Собственный канал: {own_channel}")
+                logger.debug("Own channel: %s", own_channel)
 
         # 3.2 Конкретный канал для вдохновения (если указан)
         # ВАЖНО: извлекаем только ИНСАЙТЫ, не весь стиль!
@@ -709,7 +713,7 @@ class SMMAgent:
                 insights = self._extract_competitor_insights(channel_style[0], target_channel)
                 if insights:
                     parts.append(insights)
-                    print(f"[Context] Инсайты из {target_channel} (без копирования стиля)")
+                    logger.debug("Insights from %s (no style copying)", target_channel)
 
         # 3.3 Релевантные конкуренты по теме — только ИНСАЙТЫ
         # Ищем конкурентов по теме через FTS5, но берём только идеи/темы
@@ -724,7 +728,7 @@ class SMMAgent:
                         all_insights.append(insight)
                 if all_insights:
                     parts.append("\n---\n".join(all_insights[:2]))
-                    print(f"[Context] FTS5: найдено {len(all_insights)} источников инсайтов")
+                    logger.debug("FTS5: found %s insight sources", len(all_insights))
 
         # 4. ТИПИЧНЫЕ ПРАВКИ КЛИЕНТА
         edits = self.db.fetch_all(
@@ -806,13 +810,13 @@ class SMMAgent:
 
         Возвращает PostDraft с текстом и task_id.
         """
-        print(f"\n[Executor] === Генерация поста ===")
-        print(f"[Executor] Тема: '{topic}'")
+        logger.info("Generating post")
+        logger.debug("Topic: %s", topic)
 
         # Извлекаем канал из темы (если указан) — ищем и по словам в памяти
         target_channel = self._extract_channel_from_topic(topic, user_id=user_id)
         if target_channel:
-            print(f"[Executor] Целевой канал: {target_channel}")
+            logger.debug("Target channel: %s", target_channel)
 
         # Собираем SMM контекст (с фильтром по каналу или поиск релевантного по теме)
         smm_context = self.build_smm_context(
@@ -842,7 +846,7 @@ class SMMAgent:
             }
         )
 
-        print(f"[Executor] Task #{task.id} создан")
+        logger.info("Task #%s created", task.id)
 
         # Переводим задачу в running и запускаем Executor
         draft_text = ""
@@ -863,22 +867,20 @@ class SMMAgent:
 
             running_task = self.tasks.get_task(task.id)
             if running_task:
-                print(f"[Executor] Task #{task.id} running")
+                logger.debug("Task #%s running", task.id)
                 self.executor.run_task(running_task)
         except ApprovalRequired as e:
             # Это нормальный flow — задача остановилась на APPROVAL
             draft_text = e.draft_content or ""
-            print(f"[Executor] Task #{task.id} paused for approval")
+            logger.info("Task #%s paused for approval", task.id)
         except Exception as e:
-            print(f"[Executor] Error: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error("Task execution error: %s", e, exc_info=True)
 
         # Если draft пустой — пробуем достать из task events
         if not draft_text:
             draft_text = self._get_draft_from_task(task.id)
 
-        print(f"[Executor] === Готово ===\n")
+        logger.info("Post generation complete")
 
         return PostDraft(
             text=draft_text,
@@ -942,11 +944,11 @@ class SMMAgent:
         3. Сначала применяем ВСЕ precise операции
         4. Потом creative (LLM возвращает готовый текст)
         """
-        print(f"[Edit] Запрос: {edit_request}")
+        logger.debug("Edit request: %s", edit_request)
 
         # 1. Разбиваем запрос на части
         parts = self._split_edit_request(edit_request)
-        print(f"[Edit] Части запроса: {parts}")
+        logger.debug("Request parts: %s", parts)
 
         # 2. Классифицируем каждую часть
         precise_parts = []
@@ -955,10 +957,10 @@ class SMMAgent:
         for part in parts:
             if self._is_precise_edit(part):
                 precise_parts.append(part)
-                print(f"[Edit]   precise: {part}")
+                logger.debug("  precise: %s", part)
             else:
                 creative_parts.append(part)
-                print(f"[Edit]   creative: {part}")
+                logger.debug("  creative: %s", part)
 
         # 3. Сначала применяем ВСЕ precise операции
         result = original
@@ -1082,10 +1084,10 @@ class SMMAgent:
             emoji = response.content.strip()
             # Проверяем что это действительно эмодзи (1-2 символа Unicode)
             if len(emoji) <= 4 and any(ord(c) > 127 for c in emoji):
-                print(f"[Edit] LLM resolved '{name}' → {emoji}")
+                logger.debug("LLM resolved emoji %s -> %s", name, emoji)
                 return emoji
         except Exception as e:
-            print(f"[Edit] LLM emoji resolve failed: {e}")
+            logger.warning("LLM emoji resolve failed: %s", e)
         return ""
 
     def _precise_edit(self, text: str, request: str) -> str:
@@ -1109,7 +1111,7 @@ class SMMAgent:
             for em in emojis_in_request:
                 if em in result:
                     result = result.replace(em, '', 1)
-                    print(f"[Edit] ✓ precise: убран эмодзи {em}")
+                    logger.debug("Removed emoji: %s", em)
                     found_specific = True
 
             # Ищем название эмодзи в запросе (используем LLM)
@@ -1122,14 +1124,14 @@ class SMMAgent:
                     resolved_emoji = self._resolve_emoji_by_name(emoji_name)
                     if resolved_emoji and resolved_emoji in result:
                         result = result.replace(resolved_emoji, '', 1)
-                        print(f"[Edit] ✓ precise: убран эмодзи {resolved_emoji} (LLM resolved '{emoji_name}')")
+                        logger.debug("Removed emoji %s (LLM resolved %s)", resolved_emoji, emoji_name)
                         found_specific = True
 
             # Убрать ВСЕ эмодзи только если явно сказали "все эмодзи" или "убери эмодзи" без конкретики
             if not found_specific:
                 if 'все' in request_lower:
                     result = emoji_pattern.sub('', result)
-                    print(f"[Edit] ✓ precise: убраны все эмодзи")
+                    logger.debug("Removed all emoji")
 
         # === УБЕРИ АБЗАЦ ===
         paragraphs = [p for p in result.split('\n\n') if p.strip()]
@@ -1138,7 +1140,7 @@ class SMMAgent:
         if re.search(r'(убери|удали).*последн\w*\s*абзац', request_lower):
             if len(paragraphs) > 1:
                 result = '\n\n'.join(paragraphs[:-1])
-                print(f"[Edit] ✓ precise: удалён последний абзац")
+                logger.debug("Removed last paragraph")
 
         # Последние N абзацев
         last_n_match = re.search(r'(убери|удали).*последни[ех]\s+(два|три|четыре|\d+)\s*абзац', request_lower)
@@ -1149,14 +1151,14 @@ class SMMAgent:
             paragraphs = [p for p in result.split('\n\n') if p.strip()]
             if len(paragraphs) > n:
                 result = '\n\n'.join(paragraphs[:-n])
-                print(f"[Edit] ✓ precise: удалены последние {n} абзацев")
+                logger.debug("Removed last %s paragraphs", n)
 
         # Первый абзац
         if re.search(r'(убери|удали).*перв\w*\s*абзац', request_lower):
             paragraphs = [p for p in result.split('\n\n') if p.strip()]
             if len(paragraphs) > 1:
                 result = '\n\n'.join(paragraphs[1:])
-                print(f"[Edit] ✓ precise: удалён первый абзац")
+                logger.debug("Removed first paragraph")
 
         # N-ый абзац (второй, третий, четвертый)
         ordinals = {'втор': 2, 'трет': 3, 'четверт': 4, 'четвёрт': 4, 'пят': 5}
@@ -1167,7 +1169,7 @@ class SMMAgent:
                     if idx <= len(paragraphs):
                         paragraphs.pop(idx - 1)
                         result = '\n\n'.join(paragraphs)
-                        print(f"[Edit] ✓ precise: удалён {idx}-й абзац")
+                        logger.debug("Removed paragraph #%s", idx)
                     break
 
         # === ВЫДЕЛИ ЖИРНЫМ ===
@@ -1181,7 +1183,7 @@ class SMMAgent:
                 if paragraphs and '<b>' not in paragraphs[0]:
                     paragraphs[0] = f'<b>{paragraphs[0]}</b>'
                     result = '\n\n'.join(paragraphs)
-                    print(f"[Edit] ✓ precise: первый абзац жирным")
+                    logger.debug("Made first paragraph bold")
 
             # Выделить первое предложение
             elif re.search(r'перв\w*\s*предлож', bold_request):
@@ -1190,7 +1192,7 @@ class SMMAgent:
                     result = f'<b>{sentences[0]}</b>'
                     if len(sentences) > 1:
                         result += '\n\n' + sentences[1]
-                    print(f"[Edit] ✓ precise: первое предложение жирным")
+                    logger.debug("Made first sentence bold")
 
             # Выделить конкретную фразу (число, процент)
             else:
@@ -1202,24 +1204,24 @@ class SMMAgent:
                     phrase = phrase_match.group(1).strip()
                     if phrase in result and f'<b>{phrase}</b>' not in result:
                         result = result.replace(phrase, f'<b>{phrase}</b>', 1)
-                        print(f"[Edit] ✓ precise: выделено жирным: {phrase}")
+                        logger.debug("Made bold: %s", phrase)
 
         # === УБЕРИ ЖИРНЫЙ ===
         if re.search(r'(убери|без)\s*жирн', request_lower):
             if '<b>' in result or '**' in result:
                 result = re.sub(r'</?b>', '', result)
                 result = re.sub(r'\*\*([^*]+)\*\*', r'\1', result)
-                print(f"[Edit] ✓ precise: убран жирный")
+                logger.debug("Removed bold formatting")
             else:
-                print(f"[Edit] ℹ precise: жирного текста нет")
+                logger.debug("No bold text to remove")
 
         # === УБЕРИ ХЕШТЕГИ ===
         if re.search(r'(убери|удали|без)\s*(хештег|хэштег)', request_lower):
             if '#' in result:
                 result = re.sub(r'#\w+\s*', '', result)
-                print(f"[Edit] ✓ precise: убраны хештеги")
+                logger.debug("Removed hashtags")
             else:
-                print(f"[Edit] ℹ precise: хештегов нет")
+                logger.debug("No hashtags to remove")
 
         # === ЗАМЕНА ===
         # Паттерны: "замени X на Y", "вместо X поставь Y", "X замени на Y"
@@ -1248,7 +1250,7 @@ class SMMAgent:
 
             if old_text in result:
                 result = result.replace(old_text, new_text, 1)
-                print(f"[Edit] ✓ precise: заменено '{old_text}' → '{new_text}'")
+                logger.debug("Replaced %s -> %s", old_text, new_text)
 
         return result
 
@@ -1269,7 +1271,7 @@ class SMMAgent:
         for short, full in short_commands.items():
             if request_lower == short or request_lower == f'сделай {short}':
                 request = full
-                print(f"[Edit] Нормализация: '{request_lower}' → '{full}'")
+                logger.debug("Normalized short command: %s -> %s", request_lower, full)
                 break
 
         # Контекст стиля из памяти
@@ -1312,7 +1314,7 @@ class SMMAgent:
 Дополнительно: {request}{style_hint}
 
 Верни ТОЛЬКО сокращённый текст, без комментариев."""
-            print(f"[Edit] Creative mode (SHORTEN): {len(original)} → target ~{target_len}")
+            logger.debug("Creative mode (SHORTEN): %s -> target ~%s", len(original), target_len)
             response = self.llm.complete_simple(prompt, task_type="smm", user_id=user_id)
             result = response.strip()
         else:
@@ -1336,7 +1338,7 @@ class SMMAgent:
 
 Верни ТОЛЬКО готовый текст поста БЕЗ нумерации абзацев, без комментариев."""
 
-            print(f"[Edit] Creative mode: {request}")
+            logger.debug("Creative mode: %s", request)
             response = self.llm.complete_simple(prompt, task_type="smm", user_id=user_id)
             result = response.strip()
 
@@ -1369,13 +1371,13 @@ class SMMAgent:
         min_len = max(20, int(len(original) * min_multiplier))
         max_len = int(len(original) * max_multiplier)
 
-        print(f"[Edit] Длина: оригинал={len(original)}, результат={len(result)}, границы={min_len}-{max_len}")
+        logger.debug("Length: original=%s, result=%s, bounds=%s-%s", len(original), len(result), min_len, max_len)
 
         if len(result) < min_len or len(result) > max_len:
-            print(f"[Edit] ⚠️ Creative вернул странный результат, используем оригинал")
+            logger.warning("Creative returned unexpected result, using original")
             return original
 
-        print(f"[Edit] ✓ creative edit done, сокращение: {100 - int(len(result)/len(original)*100)}%")
+        logger.debug("Creative edit done, reduction: %s%%", 100 - int(len(result)/len(original)*100))
         return result
 
     def _save_edit_feedback(self, user_id: int, edit_request: str, original: str, edited: str):
@@ -1399,13 +1401,13 @@ class SMMAgent:
         # Команды отката — обрабатываем без LLM
         if any(cmd in request_lower for cmd in ['верни оригинал', 'первый вариант', 'изначальн']):
             if versions:
-                print(f"[Edit] Откат к оригиналу")
+                logger.debug("Rollback to original")
                 return versions[0]
             return current
 
         if any(cmd in request_lower for cmd in ['откати', 'назад', 'верни предыдущ', 'отмени']):
             if len(versions) >= 2:
-                print(f"[Edit] Откат к предыдущей версии")
+                logger.debug("Rollback to previous version")
                 return versions[-2]
             return current
 
@@ -1765,14 +1767,14 @@ class SMMAgent:
 
     def search_for_post(self, user_id: int, query: str) -> str:
         """Поиск информации для поста."""
-        print(f"[Web] Поиск: '{query}'")
+        logger.debug("Searching: %s", query)
         results = self.news.search_duckduckgo(query, limit=5)
 
         if not results:
-            print(f"[Web] Ничего не найдено")
+            logger.debug("Nothing found")
             return "Ничего не найдено"
 
-        print(f"[Web] Найдено {len(results)} результатов")
+        logger.debug("Found %s results", len(results))
         search_text = []
         for r in results:
             search_text.append(f"{r.title}\n{r.summary}")
@@ -1781,7 +1783,7 @@ class SMMAgent:
 
     def generate_post_with_research(self, user_id: int, topic: str, style: str = None) -> PostDraft:
         """Сгенерировать пост с исследованием (всегда с web search)."""
-        print(f"[Research] Тема требует актуальной инфы: '{topic}'")
+        logger.info("Topic needs fresh data: %s", topic)
 
         # Извлекаем канал из темы (если указан) — ищем и по словам в памяти
         target_channel = self._extract_channel_from_topic(topic, user_id=user_id)

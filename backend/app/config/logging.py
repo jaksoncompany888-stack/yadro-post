@@ -4,6 +4,7 @@ Yadro Post - Logging Configuration
 """
 
 import logging
+import logging.handlers
 import sys
 import json
 import os
@@ -93,10 +94,15 @@ def setup_logging(
 
     logger.addHandler(console_handler)
 
-    # File handler (опционально)
+    # File handler with rotation (опционально)
     if log_file:
         Path(log_file).parent.mkdir(parents=True, exist_ok=True)
-        file_handler = logging.FileHandler(log_file, encoding="utf-8")
+        file_handler = logging.handlers.RotatingFileHandler(
+            log_file,
+            maxBytes=10 * 1024 * 1024,  # 10 MB
+            backupCount=5,
+            encoding="utf-8",
+        )
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(JSONFormatter())
         logger.addHandler(file_handler)
@@ -186,8 +192,12 @@ def log_error(
 # Определяем DEBUG из переменных окружения
 DEBUG = os.environ.get("APP_ENV", "").lower() in ("development", "dev")
 
+# File logging: включено в production, отключено в dev
+_log_file = None if DEBUG else os.environ.get("LOG_FILE", "data/logs/yadro.log")
+
 # Инициализация при импорте
 root_logger = setup_logging(
     log_level="DEBUG" if DEBUG else "INFO",
-    json_logs=not DEBUG
+    json_logs=not DEBUG,
+    log_file=_log_file,
 )

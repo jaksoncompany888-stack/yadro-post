@@ -10,6 +10,10 @@ from .models import Schedule, ScheduleStatus
 from ..storage import Database, to_json, from_json, now_iso
 from ..kernel import TaskManager
 
+from app.config.logging import get_logger
+
+logger = get_logger("scheduler")
+
 
 class Scheduler:
     """
@@ -281,7 +285,7 @@ class Scheduler:
                 count += 1
             except Exception as e:
                 # Log error but continue processing
-                print(f"Error processing schedule {schedule.id}: {e}")
+                logger.error("Error processing schedule %s: %s", schedule.id, e, exc_info=True)
         
         return count
     

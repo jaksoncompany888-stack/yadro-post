@@ -7,7 +7,6 @@ Handles:
 - Retry logic for failed posts
 """
 
-import logging
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -15,7 +14,9 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
-logger = logging.getLogger(__name__)
+from app.config.logging import get_logger
+
+logger = get_logger("scheduler")
 
 # Global scheduler instance
 _scheduler: Optional[AsyncIOScheduler] = None
@@ -34,7 +35,6 @@ def start_scheduler():
     scheduler = get_scheduler()
     if not scheduler.running:
         scheduler.start()
-        print("[APScheduler] Background scheduler started")
         logger.info("Background scheduler started")
 
         # Add periodic job to check for due posts every minute
@@ -44,7 +44,6 @@ def start_scheduler():
             id='check_scheduled_posts',
             replace_existing=True
         )
-        print("[APScheduler] Added periodic job: check_scheduled_posts (every 1 min)")
         logger.info("Added periodic job: check_scheduled_posts (every 1 min)")
 
 
@@ -53,7 +52,6 @@ def stop_scheduler():
     global _scheduler
     if _scheduler and _scheduler.running:
         _scheduler.shutdown(wait=False)
-        print("[APScheduler] Background scheduler stopped")
         logger.info("Background scheduler stopped")
 
 
@@ -65,7 +63,7 @@ async def check_scheduled_posts():
     from ..storage.database import Database
     from ..providers import ProviderManager
 
-    print("[APScheduler] Checking for scheduled posts...")
+    logger.debug("Checking for scheduled posts...")
     db = Database()
     now = datetime.utcnow()
 

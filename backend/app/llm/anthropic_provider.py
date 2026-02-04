@@ -11,6 +11,10 @@ from typing import List, Optional
 
 from .models import LLMResponse, Message, MessageRole, LLMProvider, MODELS
 
+from app.config.logging import get_logger
+
+logger = get_logger("llm.anthropic")
+
 
 class AnthropicProvider:
     """Anthropic Claude API provider."""
@@ -20,9 +24,9 @@ class AnthropicProvider:
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
         if not self.api_key:
-            print("[Anthropic] ERROR: No API key provided!")
+            logger.error("No API key provided")
             raise ValueError("Anthropic API key required")
-        print(f"[Anthropic] Initialized with key: {self.api_key[:20]}...")
+        logger.debug("Initialized with key: %s...", self.api_key[:8])
 
     def complete(
         self,
@@ -32,7 +36,7 @@ class AnthropicProvider:
         max_tokens: int = 1000,
     ) -> LLMResponse:
         """Call Anthropic API."""
-        print(f"[Anthropic] complete() called with model={model}")
+        logger.debug("complete() called with model=%s", model)
 
         # Separate system prompt from messages
         system_prompt = None
@@ -74,16 +78,16 @@ class AnthropicProvider:
         )
 
         try:
-            print(f"[Anthropic] Sending request to API...")
+            logger.debug("Sending request to API...")
             with urllib.request.urlopen(req, timeout=90) as response:
                 result = json.loads(response.read().decode("utf-8"))
-            print(f"[Anthropic] Got response, stop_reason={result.get('stop_reason')}")
+            logger.debug("Got response, stop_reason=%s", result.get('stop_reason'))
         except urllib.error.HTTPError as e:
             error_body = e.read().decode("utf-8")
-            print(f"[Anthropic] HTTP Error {e.code}: {error_body}")
+            logger.error("HTTP Error %s: %s", e.code, error_body, exc_info=True)
             raise Exception(f"Anthropic API error {e.code}: {error_body}")
         except Exception as e:
-            print(f"[Anthropic] Request failed: {e}")
+            logger.error("Request failed: %s", e, exc_info=True)
             raise
 
         # Parse response

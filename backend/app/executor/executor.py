@@ -7,13 +7,16 @@ import time
 import threading
 from datetime import datetime, timezone
 from typing import Optional
-import traceback
 
 from .models import Plan, Step, StepStatus, ExecutionContext
 from .plan_manager import PlanManager
 from .step_executor import StepExecutor, ApprovalRequired
 from ..kernel import TaskManager, Task, TaskStatus, PauseReason
 from ..storage import Database, to_json, from_json, FileStorage
+
+from app.config.logging import get_logger
+
+logger = get_logger("executor")
 
 
 # Default configuration
@@ -156,8 +159,7 @@ class Executor:
                     self.task_manager.fail(task.id, error_msg)
                     
             except Exception as e:
-                print(f"Worker loop error: {e}")
-                traceback.print_exc()
+                logger.error("Worker loop error: %s", e, exc_info=True)
                 time.sleep(self._worker_sleep)
     
     def process_one(self) -> Optional[Task]:

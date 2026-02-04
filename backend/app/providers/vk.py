@@ -32,6 +32,10 @@ from .base import (
     RateLimitError,
 )
 
+from app.config.logging import get_logger
+
+logger = get_logger("providers.vk")
+
 
 @dataclass
 class VKToken:
@@ -339,7 +343,7 @@ class VKProvider(SocialProvider):
                     attachments.append(attachment)
             except Exception as e:
                 # Log but continue with other media
-                print(f"VK media upload error: {e}")
+                logger.error("VK media upload error: %s", e, exc_info=True)
                 continue
 
         return attachments
