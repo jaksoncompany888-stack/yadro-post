@@ -33,7 +33,9 @@ class LLMTimeoutError(LLMError):
 
 class LLMRateLimitError(LLMError):
     """LLM rate limit exceeded."""
-    pass
+    def __init__(self, message: str, retry_after: Optional[int] = None):
+        super().__init__(message)
+        self.retry_after = retry_after
 
 
 class BudgetExceededError(LLMError):
@@ -502,8 +504,10 @@ class LLMService:
             for attempt in range(self.MAX_RETRIES):
                 try:
                     return self._execute(request, model_cfg, timeout)
-                except LLMRateLimitError:
-                    # Rate limit - try next model
+                except LLMRateLimitError as e:
+                    # Rate limit - sleep if Retry-After provided, then try next model
+                    if e.retry_after:
+                        time.sleep(min(e.retry_after, 60))  # cap at 60s
                     break
                 except LLMTimeoutError as e:
                     last_error = e
@@ -514,7 +518,14 @@ class LLMService:
                 except LLMError as e:
                     last_error = e
                     break
-        
+                except Exception as e:
+                    # Catch CircuitBreakerError and other non-LLM exceptions
+                    from .circuit_breaker import CircuitBreakerError
+                    if isinstance(e, CircuitBreakerError):
+                        last_error = e
+                        break  # circuit open — skip to next model in fallback chain
+                    raise  # re-raise truly unexpected errors
+
         # All retries failed - use mock
         return self._mock_response(request, MODELS["mock"])
     

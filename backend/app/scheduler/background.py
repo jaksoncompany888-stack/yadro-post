@@ -46,6 +46,15 @@ def start_scheduler():
         )
         logger.info("Added periodic job: check_scheduled_posts (every 1 min)")
 
+        # Add periodic job to auto-cancel stale paused tasks
+        scheduler.add_job(
+            cancel_stale_paused_tasks,
+            IntervalTrigger(minutes=5),
+            id='cancel_stale_paused_tasks',
+            replace_existing=True
+        )
+        logger.info("Added periodic job: cancel_stale_paused_tasks (every 5 min)")
+
 
 def stop_scheduler():
     """Stop the background scheduler."""
@@ -59,34 +68,42 @@ async def check_scheduled_posts():
     """
     Check for posts that need to be published.
     Called every minute by the scheduler.
+
+    Entire body wrapped in try/except: APScheduler swallows exceptions from jobs,
+    so without this wrapper a crash in db.fetch_all would silently kill the job.
     """
-    from ..storage.database import Database
-    from ..providers import ProviderManager
+    try:
+        from ..storage.database import Database
+        from ..providers import ProviderManager
 
-    logger.debug("Checking for scheduled posts...")
-    db = Database()
-    now = datetime.utcnow()
+        logger.debug("Checking for scheduled posts...")
+        db = Database()
+        now = datetime.utcnow()
 
-    # Find posts with status='scheduled' and publish_at <= now
-    rows = db.fetch_all(
-        """SELECT id, user_id, text, metadata, publish_at
-           FROM drafts
-           WHERE status = 'scheduled'
-           AND publish_at IS NOT NULL
-           AND publish_at <= ?
-           ORDER BY publish_at ASC
-           LIMIT 10""",
-        (now.isoformat(),)
-    )
+        # Find posts with status='scheduled' and publish_at <= now
+        rows = db.fetch_all(
+            """SELECT id, user_id, text, metadata, publish_at
+               FROM drafts
+               WHERE status = 'scheduled'
+               AND publish_at IS NOT NULL
+               AND publish_at <= ?
+               ORDER BY publish_at ASC
+               LIMIT 10""",
+            (now.isoformat(),)
+        )
 
-    for row in rows:
-        post_id = row['id']
-        logger.info(f"Publishing scheduled post {post_id}")
+        for row in rows:
+            post_id = row['id']
+            logger.info(f"Publishing scheduled post {post_id}")
 
-        try:
-            await publish_post_with_retry(db, post_id, max_retries=3)
-        except Exception as e:
-            logger.error(f"Failed to publish post {post_id}: {e}")
+            try:
+                await publish_post_with_retry(db, post_id, max_retries=3)
+            except Exception as e:
+                logger.error(f"Failed to publish post {post_id}: {e}")
+
+    except Exception as e:
+        logger.error("check_scheduled_posts crashed: %s", e, exc_info=True)
+        # Job stays registered — APScheduler will invoke again on next interval tick
 
 
 async def publish_post_with_retry(db, post_id: int, max_retries: int = 3):
@@ -294,3 +311,44 @@ async def collect_post_analytics(post_id: int):
 
             except Exception as e:
                 logger.error(f"Failed to collect Telegram analytics for post {post_id}: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Stale paused task cleanup
+# ---------------------------------------------------------------------------
+
+PAUSED_TASK_TTL_HOURS = 24
+
+
+async def cancel_stale_paused_tasks():
+    """
+    Auto-cancel tasks that have been paused longer than PAUSED_TASK_TTL_HOURS.
+
+    Paused tasks wait for human approval. If nobody acts within the TTL,
+    the task is auto-cancelled to prevent resource leaks and queue bloat.
+    Runs every 5 minutes via APScheduler.
+    """
+    try:
+        from ..storage.database import Database
+        from ..kernel.task_manager import TaskManager
+
+        db = Database()
+        tm = TaskManager(db=db)
+
+        cutoff = (datetime.utcnow() - timedelta(hours=PAUSED_TASK_TTL_HOURS)).isoformat()
+
+        rows = db.fetch_all(
+            "SELECT id FROM tasks WHERE status = 'paused' AND updated_at <= ?",
+            (cutoff,)
+        )
+
+        for row in rows:
+            task_id = row["id"]
+            logger.warning(
+                "Auto-cancelling stale paused task %d (paused > %dh)",
+                task_id, PAUSED_TASK_TTL_HOURS,
+            )
+            tm.cancel(task_id, reason="paused_timeout")
+
+    except Exception as e:
+        logger.error("cancel_stale_paused_tasks crashed: %s", e, exc_info=True)

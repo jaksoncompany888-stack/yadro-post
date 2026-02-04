@@ -12,8 +12,12 @@ from typing import List, Optional
 from .models import LLMResponse, Message, MessageRole, LLMProvider, MODELS
 
 from app.config.logging import get_logger
+from .circuit_breaker import CircuitBreaker, CircuitBreakerError
 
 logger = get_logger("llm.anthropic")
+
+# Module-level circuit breaker — singleton per process lifetime
+_anthropic_cb = CircuitBreaker(failure_threshold=5, window_seconds=60, open_timeout_seconds=30)
 
 
 class AnthropicProvider:
@@ -77,16 +81,44 @@ class AnthropicProvider:
             method="POST",
         )
 
+        # Circuit breaker gate — reject fast if Anthropic is known-down
+        if not _anthropic_cb.allow_request():
+            raise CircuitBreakerError("Anthropic circuit breaker OPEN — skip")
+
         try:
             logger.debug("Sending request to API...")
             with urllib.request.urlopen(req, timeout=90) as response:
                 result = json.loads(response.read().decode("utf-8"))
             logger.debug("Got response, stop_reason=%s", result.get('stop_reason'))
+            _anthropic_cb.record_success()
+
         except urllib.error.HTTPError as e:
             error_body = e.read().decode("utf-8")
+            _anthropic_cb.record_failure()
+
+            # 429 Rate Limit — parse Retry-After and raise typed error
+            if e.code == 429:
+                retry_after = 30  # conservative default
+                raw_retry = e.headers.get("Retry-After")
+                if raw_retry:
+                    try:
+                        retry_after = int(raw_retry)
+                    except (ValueError, TypeError):
+                        pass  # keep default 30s
+                from .service import LLMRateLimitError
+                raise LLMRateLimitError(
+                    f"Anthropic 429: {error_body}",
+                    retry_after=retry_after,
+                )
+
             logger.error("HTTP Error %s: %s", e.code, error_body, exc_info=True)
             raise Exception(f"Anthropic API error {e.code}: {error_body}")
+
+        except CircuitBreakerError:
+            raise  # don't record_failure for CB errors (already decided)
+
         except Exception as e:
+            _anthropic_cb.record_failure()
             logger.error("Request failed: %s", e, exc_info=True)
             raise
 

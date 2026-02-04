@@ -33,8 +33,12 @@ from .base import (
 )
 
 from app.config.logging import get_logger
+from app.llm.circuit_breaker import CircuitBreaker
 
 logger = get_logger("providers.vk")
+
+# Module-level circuit breaker for VK API
+_vk_cb = CircuitBreaker(failure_threshold=5, window_seconds=60, open_timeout_seconds=30)
 
 
 @dataclass
@@ -242,11 +246,16 @@ class VKProvider(SocialProvider):
         if not self._token:
             raise AuthenticationError("No access token. Call exchange_code first.")
 
+        # Circuit breaker gate
+        if not _vk_cb.allow_request():
+            raise ProviderError("VK circuit breaker OPEN — skip")
+
         url = f"{self.API_BASE}/{method}"
         params["access_token"] = self._token.access_token
         params["v"] = self.API_VERSION
 
-        async with aiohttp.ClientSession() as session:
+        timeout = aiohttp.ClientTimeout(total=30)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.post(url, data=params) as resp:
                 data = await resp.json()
 
@@ -254,6 +263,7 @@ class VKProvider(SocialProvider):
                     error = data["error"]
                     code = error.get("error_code", 0)
                     msg = error.get("error_msg", "Unknown error")
+                    _vk_cb.record_failure()
 
                     if code == 6:  # Too many requests
                         raise RateLimitError(f"VK rate limit: {msg}", retry_after=1)
@@ -262,6 +272,7 @@ class VKProvider(SocialProvider):
                     else:
                         raise ProviderError(f"VK API error {code}: {msg}")
 
+                _vk_cb.record_success()
                 return data.get("response", data)
 
     async def post(
@@ -341,9 +352,9 @@ class VKProvider(SocialProvider):
 
                 if attachment:
                     attachments.append(attachment)
-            except Exception as e:
-                # Log but continue with other media
-                logger.error("VK media upload error: %s", e, exc_info=True)
+            except (ProviderError, OSError, ValueError) as e:
+                # Log but continue with remaining media items
+                logger.error("VK media upload failed [%s]: %s", item.type.value, e, exc_info=True)
                 continue
 
         return attachments
@@ -360,7 +371,8 @@ class VKProvider(SocialProvider):
         upload_url = upload_server["upload_url"]
 
         # 2. Upload file
-        async with aiohttp.ClientSession() as session:
+        upload_timeout = aiohttp.ClientTimeout(total=60)
+        async with aiohttp.ClientSession(timeout=upload_timeout) as session:
             form = aiohttp.FormData()
 
             if item.file_path:
@@ -406,7 +418,8 @@ class VKProvider(SocialProvider):
         upload_url = save_result["upload_url"]
 
         import aiohttp
-        async with aiohttp.ClientSession() as session:
+        upload_timeout = aiohttp.ClientTimeout(total=60)
+        async with aiohttp.ClientSession(timeout=upload_timeout) as session:
             form = aiohttp.FormData()
 
             if item.file_path:
@@ -433,7 +446,8 @@ class VKProvider(SocialProvider):
         upload_url = upload_server["upload_url"]
 
         import aiohttp
-        async with aiohttp.ClientSession() as session:
+        upload_timeout = aiohttp.ClientTimeout(total=60)
+        async with aiohttp.ClientSession(timeout=upload_timeout) as session:
             form = aiohttp.FormData()
 
             if item.file_path:
@@ -479,7 +493,8 @@ class VKProvider(SocialProvider):
                 return group.get("is_admin", 0) == 1 or group.get("can_post", 0) == 1
 
             return False
-        except Exception:
+        except (ProviderError, AuthenticationError) as e:
+            logger.warning("VK validate_channel %s: %s", channel_id, e)
             return False
 
     async def get_managed_groups(self) -> List[VKGroup]:

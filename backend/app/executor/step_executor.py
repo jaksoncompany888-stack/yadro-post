@@ -798,16 +798,51 @@ class StepExecutor:
         raise ApprovalRequired(message, step.step_id, draft_content)
 
     def _handle_condition(self, step: Step, context: ExecutionContext) -> Any:
-        """Handle conditional step."""
-        condition = step.action_data.get("condition", "true")
+        """
+        Evaluate condition and skip downstream steps if needed.
 
-        # MVP: Simple evaluation
-        result = True
+        action_data fields:
+            condition:       str            — expression to evaluate
+            source_step_id:  str (optional) — which prior step's result binds as "result"
+            skip_if_false:   List[str] (optional) — step_ids to SKIP when condition is False
+            skip_if_true:    List[str] (optional) — step_ids to SKIP when condition is True
+        """
+        from .condition_evaluator import ConditionEvaluator
+
+        condition_expr = step.action_data.get("condition", "true")
+        source_step_id = step.action_data.get("source_step_id")
+        skip_if_false = step.action_data.get("skip_if_false", [])
+        skip_if_true = step.action_data.get("skip_if_true", [])
+
+        evaluator = ConditionEvaluator(context.step_results)
+        try:
+            result = evaluator.evaluate(condition_expr, source_step_id)
+        except (ValueError, KeyError) as e:
+            _logger.warning("CONDITION eval failed '%s': %s", condition_expr, e)
+            result = False  # fail-closed: unevaluable conditions treated as False
+
+        # Determine which steps to skip based on result
+        steps_to_skip = skip_if_false if not result else skip_if_true
+        skipped: list = []
+
+        if steps_to_skip and context.plan:
+            for skip_id in steps_to_skip:
+                target = context.plan.get_step(skip_id)
+                if target and target.status == StepStatus.SKIPPED:
+                    continue  # already skipped
+                if target and target.status == StepStatus.PENDING:
+                    target.status = StepStatus.SKIPPED
+                    skipped.append(skip_id)
+                    _logger.debug(
+                        "CONDITION: skipped step %s (expr=%s, result=%s)",
+                        skip_id, condition_expr, result,
+                    )
 
         return {
-            "condition": condition,
+            "condition": condition_expr,
             "result": result,
             "branch": "true" if result else "false",
+            "skipped": skipped,
         }
 
     def _handle_aggregate(self, step: Step, context: ExecutionContext) -> Any:
