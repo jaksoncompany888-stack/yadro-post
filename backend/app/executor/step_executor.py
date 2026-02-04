@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from .models import Step, StepAction, StepStatus, ExecutionContext
 from ..kernel import TaskManager, PauseReason
 from ..tools.registry import registry as tool_registry
+from ..tools.runtime import ToolRuntime
 
 from app.config.logging import get_logger
 
@@ -725,20 +726,38 @@ class StepExecutor:
                 }
                 _logger.debug("memory_store: %s → temp=%s, type=%s", channel, recommended_temp, content_type)
 
-        # Пробуем вызвать реальный tool
+        # Вызываем tool через ToolRuntime: validation + timeout + retry + аудит-лог
         tool_spec = tool_registry.get(tool_name)
         if tool_spec is not None:
             try:
-                # Фильтруем параметры — оставляем только те, что tool принимает
+                # Фильтруем параметры — убираем action_data мусор, оставляем только то что tool принимает
                 import inspect
                 sig = inspect.signature(tool_spec.handler)
                 valid_params = set(sig.parameters.keys())
                 filtered_params = {k: v for k, v in params.items() if k in valid_params}
 
                 _logger.debug("TOOL_CALL: %s with %s", tool_name, list(filtered_params.keys()))
-                result = tool_spec.handler(**filtered_params)
-                _logger.debug("TOOL_CALL: %s → OK", tool_name)
-                return {"tool": tool_name, **result}
+
+                # ToolRuntime добавляет: schema validation, exponential-backoff retry,
+                # per-handler timeout и аудит-запись в task_events.
+                runtime = ToolRuntime(registry=tool_registry)
+                tool_result = runtime.execute(
+                    tool_name=tool_name,
+                    parameters=filtered_params,
+                    user_id=context.user_id,
+                    task_id=context.task_id,
+                    task_type="smm",
+                    step_id=step.step_id,
+                )
+
+                if tool_result.success:
+                    _logger.debug("TOOL_CALL: %s → OK [%dms]", tool_name, tool_result.execution_time_ms or 0)
+                    data = tool_result.data
+                    return {"tool": tool_name, **(data if isinstance(data, dict) else {"result": data})}
+                else:
+                    _logger.warning("TOOL_CALL: %s → FAILED: %s", tool_name, tool_result.error)
+                    return {"tool": tool_name, "error": tool_result.error}
+
             except Exception as e:
                 _logger.error("TOOL_CALL: %s → ERROR: %s", tool_name, e, exc_info=True)
                 return {"tool": tool_name, "error": str(e)}

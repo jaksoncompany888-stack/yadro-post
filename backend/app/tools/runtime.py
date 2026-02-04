@@ -9,10 +9,82 @@ import concurrent.futures
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 
-from .models import ToolSpec, ToolResult, ToolCall, ToolImpact
+from .models import ToolSpec, ToolResult, ToolCall, ToolImpact, ToolValidationError
 from .registry import ToolRegistry, registry
 from .policy import PolicyEngine, PolicyConfig, PolicyCheckResult
 from ..storage import Database, to_json, now_iso
+from ..config.logging import get_logger
+
+_logger = get_logger("tools.runtime")
+
+# ---------------------------------------------------------------------------
+# Retry + validation constants
+# ---------------------------------------------------------------------------
+
+# Transient errors: retried with exponential backoff
+_TRANSIENT_ERRORS = (TimeoutError, ConnectionError, OSError)
+
+# Max retries for transient failures; delays: 0.5s → 1.0s → 2.0s
+_TOOL_RETRY_MAX = 3
+_TOOL_RETRY_BASE_DELAY = 0.5  # seconds
+
+# Minimal type map — maps JSON-schema type names to Python types
+_TYPE_MAP = {
+    "string": (str,),
+    "integer": (int,),
+    "number": (int, float),
+    "boolean": (bool,),
+    "array": (list,),
+    "object": (dict,),
+}
+
+
+def _validate_params(tool: ToolSpec, parameters: Dict[str, Any]) -> None:
+    """
+    Validate parameters against ToolSpec.parameters schema.
+
+    Checks:
+        - Required params are present
+        - Provided params match declared type
+
+    Raises ToolValidationError with list of all violations.
+    Does nothing if tool.parameters is empty (no schema = no validation).
+    """
+    schema = tool.parameters
+    if not schema:
+        return  # no schema defined → skip validation
+
+    errors: list = []
+    for param_name, param_def in schema.items():
+        required = param_def.get("required", False)
+        expected_type = param_def.get("type")
+
+        if required and param_name not in parameters:
+            errors.append(f"missing required '{param_name}'")
+            continue
+
+        if param_name not in parameters:
+            continue  # optional, not provided — ok
+
+        value = parameters[param_name]
+        if value is None:
+            if required:
+                errors.append(f"'{param_name}' is required but got None")
+            continue  # None for optional is fine
+
+        if expected_type and expected_type in _TYPE_MAP:
+            if not isinstance(value, _TYPE_MAP[expected_type]):
+                errors.append(
+                    f"'{param_name}': expected {expected_type}, got {type(value).__name__}"
+                )
+
+    if errors:
+        raise ToolValidationError(tool.name, errors)
+
+
+# ---------------------------------------------------------------------------
+# Exceptions
+# ---------------------------------------------------------------------------
 
 
 class ToolExecutionError(Exception):
@@ -27,7 +99,7 @@ class ToolNotFoundError(Exception):
 
 class PolicyViolationError(Exception):
     """Raised when policy check fails."""
-    
+
     def __init__(self, message: str, check_result: PolicyCheckResult):
         super().__init__(message)
         self.check_result = check_result
@@ -89,40 +161,38 @@ class ToolRuntime:
         step_id: Optional[str] = None,
     ) -> ToolResult:
         """
-        Execute a tool.
-        
-        Args:
-            tool_name: Name of tool to execute
-            parameters: Tool parameters
-            user_id: User ID
-            task_id: Optional task ID
-            task_type: Task type for policy check
-            step_id: Optional step ID
-            
-        Returns:
-            ToolResult
-            
+        Execute a tool with validation, timeout and retry.
+
+        Flow:
+            1. Registry lookup
+            2. Policy check (rate limits, allowlists)
+            3. Schema validation (required params, types)
+            4. Retry loop — up to _TOOL_RETRY_MAX attempts for transient errors
+            5. Audit log to task_events
+
         Raises:
             ToolNotFoundError: Tool doesn't exist
             PolicyViolationError: Policy check failed
-            ToolExecutionError: Execution failed
+            ToolValidationError: Parameter schema mismatch
         """
-        # Get tool
+        # 1. Get tool
         tool = self._registry.get(tool_name)
         if tool is None:
             raise ToolNotFoundError(f"Tool '{tool_name}' not found")
-        
-        # Check policy
+
+        # 2. Check policy
         check = self._policy_engine.check_tool_call(
             tool=tool,
             user_id=user_id,
             task_type=task_type,
             parameters=parameters,
         )
-        
         if not check.allowed:
             raise PolicyViolationError(check.reason, check)
-        
+
+        # 3. Validate parameters against schema
+        _validate_params(tool, parameters)
+
         # Create call record
         call = ToolCall(
             tool_name=tool_name,
@@ -132,53 +202,67 @@ class ToolRuntime:
             step_id=step_id,
             called_at=datetime.now(timezone.utc),
         )
-        
-        # Execute with timeout
+
+        # 4. Execute with retry (transient errors only)
         start_time = time.time()
-        try:
-            result_data = self._execute_with_timeout(
-                tool.handler,
-                parameters,
-                tool.timeout_seconds,
-            )
-            
-            execution_time_ms = int((time.time() - start_time) * 1000)
-            
-            result = ToolResult(
-                success=True,
-                data=result_data,
-                tool_name=tool_name,
-                execution_time_ms=execution_time_ms,
-            )
-            
-        except TimeoutError:
-            execution_time_ms = int((time.time() - start_time) * 1000)
-            result = ToolResult(
-                success=False,
-                error=f"Tool execution timed out after {tool.timeout_seconds}s",
-                tool_name=tool_name,
-                execution_time_ms=execution_time_ms,
-            )
-            
-        except Exception as e:
-            execution_time_ms = int((time.time() - start_time) * 1000)
-            result = ToolResult(
-                success=False,
-                error=f"{type(e).__name__}: {str(e)}",
-                tool_name=tool_name,
-                execution_time_ms=execution_time_ms,
-            )
-        
-        # Record call and complete
+        result: Optional[ToolResult] = None
+
+        for attempt in range(_TOOL_RETRY_MAX):
+            try:
+                result_data = self._execute_with_timeout(
+                    tool.handler,
+                    parameters,
+                    tool.timeout_seconds,
+                )
+                execution_time_ms = int((time.time() - start_time) * 1000)
+                result = ToolResult(
+                    success=True,
+                    data=result_data,
+                    tool_name=tool_name,
+                    execution_time_ms=execution_time_ms,
+                )
+                break  # success — exit retry loop
+
+            except _TRANSIENT_ERRORS as e:
+                if attempt < _TOOL_RETRY_MAX - 1:
+                    delay = _TOOL_RETRY_BASE_DELAY * (2 ** attempt)
+                    _logger.warning(
+                        "Tool '%s' attempt %d/%d transient error: %s. Retry in %.1fs",
+                        tool_name, attempt + 1, _TOOL_RETRY_MAX, e, delay,
+                    )
+                    time.sleep(delay)
+                    continue
+                # Final attempt exhausted
+                execution_time_ms = int((time.time() - start_time) * 1000)
+                result = ToolResult(
+                    success=False,
+                    error=f"Failed after {_TOOL_RETRY_MAX} retries: {type(e).__name__}: {e}",
+                    tool_name=tool_name,
+                    execution_time_ms=execution_time_ms,
+                )
+                break
+
+            except Exception as e:
+                # Non-transient error — no retry
+                execution_time_ms = int((time.time() - start_time) * 1000)
+                result = ToolResult(
+                    success=False,
+                    error=f"{type(e).__name__}: {str(e)}",
+                    tool_name=tool_name,
+                    execution_time_ms=execution_time_ms,
+                )
+                break
+
+        # 5. Record call and audit log
         call.result = result
         call.completed_at = datetime.now(timezone.utc)
-        
+
         # Record for rate limiting
         self._policy_engine.record_call(user_id, tool_name)
-        
-        # Log to database
+
+        # Log to database (task_events audit trail)
         self._log_tool_call(call)
-        
+
         return result
     
     def _execute_with_timeout(

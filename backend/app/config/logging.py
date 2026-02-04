@@ -11,6 +11,12 @@ import os
 from datetime import datetime
 from typing import Any, Dict, Optional
 from pathlib import Path
+from contextvars import ContextVar
+
+# ContextVar для request_id — устанавливается один раз в middleware,
+# автоматически доступен во всех логах той же asyncio задачи.
+# Определена здесь (не в app.py) чтобы избежать circular imports.
+request_id_var: ContextVar[str] = ContextVar('request_id', default='')
 
 
 class JSONFormatter(logging.Formatter):
@@ -26,6 +32,11 @@ class JSONFormatter(logging.Formatter):
             "function": record.funcName,
             "line": record.lineno,
         }
+
+        # Inject request_id из contextvars если доступен
+        rid = request_id_var.get()
+        if rid:
+            log_data["request_id"] = rid
 
         # Добавляем extra данные если есть
         if hasattr(record, "extra_data"):
