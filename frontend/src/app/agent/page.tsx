@@ -5,6 +5,7 @@ import { Send, Wand2, Copy, Check, Calendar, Loader2, MessageSquare, Plus, Trash
 import { aiApi, draftsApi } from '@/lib/api'
 import { useRouter } from 'next/navigation'
 import { clsx } from 'clsx'
+import { FormattedText } from '@/components/formatted-text'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 
@@ -365,7 +366,10 @@ export default function AgentPage() {
                     : 'bg-secondary p-3 md:p-4'
                 }`}
               >
-                <p className="whitespace-pre-wrap break-words text-sm md:text-base overflow-hidden">{message.content}</p>
+                <FormattedText
+                  text={message.content}
+                  className="text-sm md:text-base overflow-hidden"
+                />
 
                 {/* Hashtags */}
                 {message.hashtags && message.hashtags.length > 0 && (

@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { userChannelsApi, analyticsApi } from '@/lib/api'
+import { TextPreview } from '@/components/formatted-text'
 
 // API response types
 interface OverviewStats {
@@ -655,7 +656,7 @@ export default function AnalyticsPage() {
                         {index + 1}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">{post.title}</div>
+                        <TextPreview text={post.title} maxLength={50} className="text-sm font-medium" />
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <span className={clsx(
                             'w-4 h-4 rounded-full flex items-center justify-center text-[10px]',
@@ -696,7 +697,7 @@ export default function AnalyticsPage() {
                         {index + 1}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">{post.title}</div>
+                        <TextPreview text={post.title} maxLength={50} className="text-sm font-medium" />
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <span className={clsx(
                             'w-4 h-4 rounded-full flex items-center justify-center text-[10px]',
@@ -737,7 +738,7 @@ export default function AnalyticsPage() {
                         {index + 1}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">{post.title}</div>
+                        <TextPreview text={post.title} maxLength={50} className="text-sm font-medium" />
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <span className={clsx(
                             'w-4 h-4 rounded-full flex items-center justify-center text-[10px]',
