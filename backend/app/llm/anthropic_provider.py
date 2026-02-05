@@ -5,11 +5,18 @@ Real Anthropic Claude API integration.
 """
 import os
 import json
+import logging
 import urllib.request
 import urllib.error
 from typing import List, Optional
 
 from .models import LLMResponse, Message, MessageRole, LLMProvider, MODELS
+from .circuit_breaker import CircuitBreaker, CircuitBreakerError
+
+logger = logging.getLogger("yadro.llm.anthropic")
+
+# Module-level circuit breaker — singleton per process lifetime
+_anthropic_cb = CircuitBreaker(failure_threshold=5, window_seconds=60, open_timeout_seconds=30)
 
 
 class AnthropicProvider:
@@ -20,9 +27,9 @@ class AnthropicProvider:
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
         if not self.api_key:
-            print("[Anthropic] ERROR: No API key provided!")
+            logger.error("No API key provided")
             raise ValueError("Anthropic API key required")
-        print(f"[Anthropic] Initialized with key: {self.api_key[:20]}...")
+        logger.debug("Initialized with key: %s...", self.api_key[:8])
 
     def complete(
         self,
@@ -32,7 +39,7 @@ class AnthropicProvider:
         max_tokens: int = 1000,
     ) -> LLMResponse:
         """Call Anthropic API."""
-        print(f"[Anthropic] complete() called with model={model}")
+        logger.debug("complete() called with model=%s", model)
 
         # Separate system prompt from messages
         system_prompt = None
@@ -73,17 +80,45 @@ class AnthropicProvider:
             method="POST",
         )
 
+        # Circuit breaker gate — reject fast if Anthropic is known-down
+        if not _anthropic_cb.allow_request():
+            raise CircuitBreakerError("Anthropic circuit breaker OPEN — skip")
+
         try:
-            print(f"[Anthropic] Sending request to API...")
+            logger.debug("Sending request to API...")
             with urllib.request.urlopen(req, timeout=90) as response:
                 result = json.loads(response.read().decode("utf-8"))
-            print(f"[Anthropic] Got response, stop_reason={result.get('stop_reason')}")
+            logger.debug("Got response, stop_reason=%s", result.get('stop_reason'))
+            _anthropic_cb.record_success()
+
         except urllib.error.HTTPError as e:
             error_body = e.read().decode("utf-8")
-            print(f"[Anthropic] HTTP Error {e.code}: {error_body}")
+            _anthropic_cb.record_failure()
+
+            # 429 Rate Limit — parse Retry-After and raise typed error
+            if e.code == 429:
+                retry_after = 30  # conservative default
+                raw_retry = e.headers.get("Retry-After")
+                if raw_retry:
+                    try:
+                        retry_after = int(raw_retry)
+                    except (ValueError, TypeError):
+                        pass  # keep default 30s
+                from .service import LLMRateLimitError
+                raise LLMRateLimitError(
+                    f"Anthropic 429: {error_body}",
+                    retry_after=retry_after,
+                )
+
+            logger.error("HTTP Error %s: %s", e.code, error_body)
             raise Exception(f"Anthropic API error {e.code}: {error_body}")
+
+        except CircuitBreakerError:
+            raise  # don't record_failure for CB errors (already decided)
+
         except Exception as e:
-            print(f"[Anthropic] Request failed: {e}")
+            _anthropic_cb.record_failure()
+            logger.error("Request failed: %s", e)
             raise
 
         # Parse response

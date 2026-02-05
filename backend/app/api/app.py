@@ -5,11 +5,18 @@ Main entry point for the API.
 """
 
 import os
+import time
+import uuid
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
+
+logger = logging.getLogger("yadro.api")
 
 from .posts import router as posts_router
 from .calendar import router as calendar_router
@@ -21,6 +28,44 @@ from .auth import router as auth_router
 from .resources import router as resources_router
 from .deps import get_db, get_memory
 from ..storage.migrations import run_migrations
+
+
+# ---------------------------------------------------------------------------
+# Middleware
+# ---------------------------------------------------------------------------
+
+
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    """Log every incoming HTTP request with method, path, status and duration.
+    Generates X-Request-ID for log correlation across the entire request lifecycle."""
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        # Generate short request ID (8 hex chars)
+        req_id = uuid.uuid4().hex[:8]
+        request.state.request_id = req_id
+
+        start = time.perf_counter()
+        response = await call_next(request)
+        duration_ms = round((time.perf_counter() - start) * 1000, 1)
+
+        # Expose request ID in response header so client can correlate
+        response.headers["X-Request-ID"] = req_id
+
+        logger.info(
+            "%s %s -> %d [%.1fms] req_id=%s",
+            request.method,
+            request.url.path,
+            response.status_code,
+            duration_ms,
+            req_id,
+        )
+
+        return response
+
+
+# ---------------------------------------------------------------------------
+# Lifespan
+# ---------------------------------------------------------------------------
 
 
 @asynccontextmanager
@@ -61,6 +106,9 @@ def create_app() -> FastAPI:
         version="1.0.0",
         lifespan=lifespan,
     )
+
+    # Request logging middleware (runs first, logs all requests)
+    app.add_middleware(RequestLoggingMiddleware)
 
     # CORS for Mini App and web
     app.add_middleware(
