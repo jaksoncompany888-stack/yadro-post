@@ -16,6 +16,7 @@ from fastapi import Depends, HTTPException, Header, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from app.storage.database import Database
+from app.config.settings import settings
 from app.memory.service import MemoryService
 from app.llm.service import LLMService
 from app.llm.router import ModelRouter, RouterConfig
@@ -33,8 +34,7 @@ def get_db() -> Database:
     """Get database instance."""
     global _db
     if _db is None:
-        db_path = os.environ.get("DATABASE_PATH", "data/yadro.db")
-        _db = Database(db_path)
+        _db = Database(settings.database.path)
     return _db
 
 

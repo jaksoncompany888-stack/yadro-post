@@ -8,11 +8,14 @@ import threading
 import signal
 import sys
 import os
+import logging
 import uvicorn
 from dotenv import load_dotenv
 
 # Load .env file
 load_dotenv()
+
+logger = logging.getLogger("yadro.runner")
 
 # Флаг для graceful shutdown
 shutdown_event = threading.Event()
@@ -20,7 +23,7 @@ shutdown_event = threading.Event()
 
 def signal_handler(signum, frame):
     """Обработка сигналов завершения"""
-    print(f"[Runner] Received signal {signum}, shutting down...")
+    logger.info("Received signal %s, shutting down...", signum)
     shutdown_event.set()
     sys.exit(0)
 
@@ -50,14 +53,14 @@ def main():
     # Start API in background thread
     api_thread = threading.Thread(target=run_api, daemon=True)
     api_thread.start()
-    print("[Runner] API started on background thread")
+    logger.info("API started on background thread")
 
     # Run bot in main thread (asyncio)
-    print("[Runner] Starting Telegram bot...")
+    logger.info("Starting Telegram bot...")
     try:
         asyncio.run(run_bot())
     except (KeyboardInterrupt, SystemExit):
-        print("[Runner] Shutdown complete")
+        logger.info("Shutdown complete")
 
 
 if __name__ == "__main__":

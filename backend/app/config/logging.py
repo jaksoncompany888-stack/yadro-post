@@ -4,12 +4,19 @@ Yadro Post - Logging Configuration
 """
 
 import logging
+import logging.handlers
 import sys
 import json
 import os
 from datetime import datetime
 from typing import Any, Dict, Optional
 from pathlib import Path
+from contextvars import ContextVar
+
+# ContextVar для request_id — устанавливается один раз в middleware,
+# автоматически доступен во всех логах той же asyncio задачи.
+# Определена здесь (не в app.py) чтобы избежать circular imports.
+request_id_var: ContextVar[str] = ContextVar('request_id', default='')
 
 
 class JSONFormatter(logging.Formatter):
@@ -25,6 +32,11 @@ class JSONFormatter(logging.Formatter):
             "function": record.funcName,
             "line": record.lineno,
         }
+
+        # Inject request_id из contextvars если доступен
+        rid = request_id_var.get()
+        if rid:
+            log_data["request_id"] = rid
 
         # Добавляем extra данные если есть
         if hasattr(record, "extra_data"):
@@ -93,10 +105,15 @@ def setup_logging(
 
     logger.addHandler(console_handler)
 
-    # File handler (опционально)
+    # File handler with rotation (опционально)
     if log_file:
         Path(log_file).parent.mkdir(parents=True, exist_ok=True)
-        file_handler = logging.FileHandler(log_file, encoding="utf-8")
+        file_handler = logging.handlers.RotatingFileHandler(
+            log_file,
+            maxBytes=10 * 1024 * 1024,  # 10 MB
+            backupCount=5,
+            encoding="utf-8",
+        )
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(JSONFormatter())
         logger.addHandler(file_handler)
@@ -186,8 +203,12 @@ def log_error(
 # Определяем DEBUG из переменных окружения
 DEBUG = os.environ.get("APP_ENV", "").lower() in ("development", "dev")
 
+# File logging: включено в production, отключено в dev
+_log_file = None if DEBUG else os.environ.get("LOG_FILE", "data/logs/yadro.log")
+
 # Инициализация при импорте
 root_logger = setup_logging(
     log_level="DEBUG" if DEBUG else "INFO",
-    json_logs=not DEBUG
+    json_logs=not DEBUG,
+    log_file=_log_file,
 )

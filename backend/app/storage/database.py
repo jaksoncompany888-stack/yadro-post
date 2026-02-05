@@ -3,7 +3,9 @@ Yadro v0 - Database Module
 
 Thread-safe SQLite database with connection pooling.
 """
+import os
 import sqlite3
+import logging
 import threading
 import json
 from datetime import datetime, date
@@ -13,74 +15,82 @@ from contextlib import contextmanager
 
 from .schema import init_schema
 
+_db_logger = logging.getLogger("yadro.database")
+
 
 class Database:
     """
     Thread-safe SQLite database manager.
-    
+
     Uses thread-local connections for safety.
     NOT a singleton - create instances as needed, but typically use one per app.
     """
-    
+
     def __init__(self, db_path: Optional[Union[str, Path]] = None):
         """
         Initialize database.
-        
+
         Args:
             db_path: Path to database file. If None, uses default from settings.
         """
         if db_path is None:
             from ..config.settings import settings
             db_path = settings.database.path
-        
+            self._wal_mode = settings.database.wal_mode
+            self._busy_timeout_ms = settings.database.busy_timeout_ms
+        else:
+            self._wal_mode = True
+            self._busy_timeout_ms = 5000
+
         self._db_path = Path(db_path)
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         self._local = threading.local()
         self._lock = threading.Lock()
-        
+
         # Initialize schema on first connection
         conn = self._get_connection()
+        self._startup_integrity_check(conn)
         init_schema(conn)
-    
+
+    def _startup_integrity_check(self, conn: sqlite3.Connection) -> None:
+        """Run integrity check once at startup. Destroy and recreate only if corrupt."""
+        try:
+            result = conn.execute("PRAGMA integrity_check").fetchone()
+            if result[0] != "ok":
+                raise sqlite3.DatabaseError("integrity_check returned: " + result[0])
+        except sqlite3.DatabaseError as e:
+            _db_logger.warning(
+                "Database corruption detected at %s: %s. Removing and recreating.",
+                self._db_path, e
+            )
+            conn.close()
+            self._local.connection = None
+            for ext in ('', '-shm', '-wal'):
+                path = str(self._db_path) + ext
+                if os.path.exists(path):
+                    os.remove(path)
+            # Re-establish connection (fresh empty DB)
+            self._get_connection()
+
     def _in_transaction(self) -> bool:
         """Check if currently in a transaction."""
         return getattr(self._local, 'in_transaction', False)
-    
+
     def _get_connection(self) -> sqlite3.Connection:
         """Get thread-local connection."""
         if not hasattr(self._local, 'connection') or self._local.connection is None:
-            # Проверяем целостность базы перед подключением
-            try:
-                conn = sqlite3.connect(
-                    str(self._db_path),
-                    check_same_thread=False,
-                    timeout=5.0,
-                )
-                conn.row_factory = sqlite3.Row
-                # Проверка целостности
-                result = conn.execute("PRAGMA integrity_check").fetchone()
-                if result[0] != "ok":
-                    conn.close()
-                    raise sqlite3.DatabaseError("Database corrupted")
-            except sqlite3.DatabaseError:
-                # База повреждена — удаляем и создаём заново
-                import os
-                for ext in ['', '-shm', '-wal']:
-                    path = str(self._db_path) + ext
-                    if os.path.exists(path):
-                        os.remove(path)
-                conn = sqlite3.connect(
-                    str(self._db_path),
-                    check_same_thread=False,
-                    timeout=5.0,
-                )
-                conn.row_factory = sqlite3.Row
+            conn = sqlite3.connect(
+                str(self._db_path),
+                check_same_thread=False,
+                timeout=self._busy_timeout_ms / 1000.0,
+            )
+            conn.row_factory = sqlite3.Row
 
-            # Enable foreign keys, use DELETE mode (safer than WAL on small servers)
             conn.execute("PRAGMA foreign_keys = ON")
-            conn.execute("PRAGMA journal_mode = DELETE")  # Безопаснее WAL для t2.micro
-            conn.execute("PRAGMA busy_timeout = 5000")
+            journal_mode = "WAL" if self._wal_mode else "DELETE"
+            conn.execute(f"PRAGMA journal_mode = {journal_mode}")
+            conn.execute(f"PRAGMA busy_timeout = {self._busy_timeout_ms}")
             conn.execute("PRAGMA synchronous = NORMAL")
 
             self._local.connection = conn

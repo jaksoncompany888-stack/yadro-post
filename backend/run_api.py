@@ -7,16 +7,19 @@ Web API runner (без Telegram бота)
 import os
 import signal
 import sys
+import logging
 import uvicorn
 from dotenv import load_dotenv
 
 # Load .env file
 load_dotenv()
 
+logger = logging.getLogger("yadro.runner")
+
 
 def signal_handler(signum, frame):
     """Обработка сигналов завершения"""
-    print(f"[API] Received signal {signum}, shutting down...")
+    logger.info("Received signal %s, shutting down...", signum)
     sys.exit(0)
 
 
@@ -27,9 +30,9 @@ def main():
 
     port = int(os.environ.get("PORT", 8000))
 
-    print(f"[API] Starting Yadro SMM API on port {port}")
-    print(f"[API] Database: {os.environ.get('DATABASE_PATH', 'data/yadro.db')}")
-    print(f"[API] Environment: {os.environ.get('APP_ENV', 'production')}")
+    logger.info("Starting Yadro SMM API on port %s", port)
+    logger.info("Database: %s", os.environ.get('DATABASE_PATH', 'data/yadro.db'))
+    logger.info("Environment: %s", os.environ.get('APP_ENV', 'production'))
 
     uvicorn.run(
         "app.api.app:app",

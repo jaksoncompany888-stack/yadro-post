@@ -7,6 +7,10 @@ from typing import Dict, Any, List, Optional
 from .registry import registry
 from .models import ToolImpact
 
+from app.config.logging import get_logger
+
+logger = get_logger("tools.smm")
+
 
 def register_smm_tools(
     channel_parser=None,
@@ -182,7 +186,7 @@ def register_smm_tools(
                     "DELETE FROM memory_items WHERE user_id = ? AND content LIKE ?",
                     (user_id, f"Стиль канала {channel}%")
                 )
-                print(f"[Memory] Очищен старый анализ {channel}")
+                logger.debug("Cleared old analysis for %s", channel)
 
             memory_service.store(
                 user_id=user_id,
@@ -613,4 +617,4 @@ def register_smm_tools(
         }
     )
 
-    print(f"[Tools] Зарегистрировано SMM tools: {registry.list_names()}")
+    logger.info("Registered SMM tools: %s", registry.list_names())

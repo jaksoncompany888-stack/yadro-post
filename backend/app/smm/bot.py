@@ -25,6 +25,10 @@ from app.smm.agent import SMMAgent
 from app.smm.scheduler_tasks import SMMScheduler
 from app.kernel.task_manager import TaskLimitError
 
+from app.config.logging import get_logger
+
+logger = get_logger("smm.bot")
+
 # Config
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
@@ -1433,9 +1437,7 @@ async def process_text_input(message: Message, text: str):
             db.execute("UPDATE tasks SET status = 'cancelled' WHERE user_id = ? AND status IN ('queued', 'running', 'paused')", (user_id,))
             draft = agent.generate_post(user_id, text)
         except Exception as e:
-            print(f"[Bot] generate_post error: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error("generate_post error: %s", e, exc_info=True)
             await message.answer(f"Ошибка генерации: {e}", parse_mode=None)
             return
 
@@ -1910,11 +1912,7 @@ async def cb_back_drafts(callback: CallbackQuery):
 # ==================== ЗАПУСК ====================
 
 async def main():
-    print("=" * 40)
-    print("SMM Agent запущен")
-    print("Бот: @Yadro888_bot")
-    print("Scheduler: включен (1 мин интервал)")
-    print("=" * 40)
+    logger.info("SMM Agent started (Bot: @Yadro888_bot, Scheduler: enabled, 1 min interval)")
 
     # Устанавливаем команды бота (кнопка Меню в Telegram)
     from aiogram.types import BotCommand
@@ -1927,7 +1925,7 @@ async def main():
         BotCommand(command="analyze", description="📊 Анализ конкурентов"),
     ]
     await bot.set_my_commands(commands)
-    print("[Bot] Команды меню установлены")
+    logger.info("Bot menu commands set")
 
     # Инициализируем scheduler (60 сек для проверки отложенных постов)
     scheduler = SMMScheduler(db=db, llm=llm, bot=bot, check_interval=60)

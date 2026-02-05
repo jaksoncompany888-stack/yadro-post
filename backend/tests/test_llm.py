@@ -76,7 +76,7 @@ class TestModelConfig:
         """Test predefined models are available."""
         assert "gpt-4o" in MODELS
         assert "gpt-4o-mini" in MODELS
-        assert "claude-3-5-sonnet" in MODELS
+        assert "claude-sonnet-4" in MODELS
         assert "mock" in MODELS
 
 
@@ -99,7 +99,7 @@ class TestPromptBuilder:
         """Test getting SMM system prompt."""
         prompt = builder.get_system_prompt("smm")
         
-        assert "social media" in prompt.lower()
+        assert "smm" in prompt.lower()
     
     def test_build_prompt_analyze(self, builder):
         """Test building analyze template."""

@@ -9,6 +9,10 @@ from dataclasses import dataclass
 import time
 import random
 
+from app.config.logging import get_logger
+
+logger = get_logger("tools.browser")
+
 
 @dataclass
 class SearchResult:
@@ -77,8 +81,8 @@ class BrowserTool:
     
     def _default_human_callback(self, reason: str, screenshot_path: str) -> bool:
         """Дефолтный callback — спрашивает в консоли."""
-        print(f"\n🙋 Нужна помощь: {reason}")
-        print(f"   Скриншот: {screenshot_path}")
+        logger.warning("Human help needed: %s (screenshot: %s)", reason, screenshot_path)
+
         response = input("   Готово? (y/n): ").strip().lower()
         return response == 'y'
     

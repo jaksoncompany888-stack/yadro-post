@@ -7,13 +7,16 @@ import time
 import threading
 from datetime import datetime, timezone
 from typing import Optional
-import traceback
 
 from .models import Plan, Step, StepStatus, ExecutionContext
 from .plan_manager import PlanManager
 from .step_executor import StepExecutor, ApprovalRequired
 from ..kernel import TaskManager, Task, TaskStatus, PauseReason
 from ..storage import Database, to_json, from_json, FileStorage
+
+from app.config.logging import get_logger
+
+logger = get_logger("executor")
 
 
 # Default configuration
@@ -156,8 +159,7 @@ class Executor:
                     self.task_manager.fail(task.id, error_msg)
                     
             except Exception as e:
-                print(f"Worker loop error: {e}")
-                traceback.print_exc()
+                logger.error("Worker loop error: %s", e, exc_info=True)
                 time.sleep(self._worker_sleep)
     
     def process_one(self) -> Optional[Task]:
@@ -206,7 +208,29 @@ class Executor:
             self._save_plan(plan)
         
         context.plan = plan
-        
+
+        # === Post-resume: mark APPROVAL step as COMPLETED ===
+        # When a task resumes after approval, the APPROVAL step is still PENDING
+        # (execute() resets it on ApprovalRequired). Without this fix, get_next_step()
+        # would return the same APPROVAL step → _handle_approval → pause again → loop.
+        # Solution: read the persisted approval_decision event and mark step COMPLETED.
+        if task.current_step_id:
+            from .models import StepAction
+            pending_step = plan.get_step(task.current_step_id)
+            if (pending_step
+                    and pending_step.action == StepAction.APPROVAL
+                    and pending_step.status == StepStatus.PENDING):
+                decision = self._get_latest_approval_decision(task.id)
+                if decision:
+                    pending_step.status = StepStatus.COMPLETED
+                    pending_step.result = decision  # {"approved": True, "edited_content": "..."}
+                    context.add_step_result(pending_step.step_id, decision)
+                    logger.debug(
+                        "Post-resume: APPROVAL step %s → COMPLETED (edited=%s)",
+                        pending_step.step_id,
+                        decision.get("edited_content") is not None,
+                    )
+
         # Update task with plan info
         self.task_manager.update_step(task.id, plan.plan_id, None)
         
@@ -456,22 +480,56 @@ class Executor:
     ) -> Task:
         """
         Handle user approval response.
-        
+
+        Persists the approval decision to task_events BEFORE resuming.
+        This is the durable store that survives the pause-resume cycle
+        and is read back by run_task() to mark the APPROVAL step COMPLETED.
+
         Args:
             task_id: Task ID
             approved: Whether user approved
-            edited_content: Optional edited content
-            
+            edited_content: Optional edited content from user
+
         Returns:
             Updated task
         """
         task = self.task_manager.get_task(task_id)
         if task is None or task.status != TaskStatus.PAUSED:
             raise ValueError(f"Task {task_id} is not paused for approval")
-        
+
+        # Persist decision to event log BEFORE state transition.
+        # task_events is append-only, indexed by task_id — zero migration cost.
+        approval_data: dict = {"approved": approved}
+        if edited_content is not None:
+            approval_data["edited_content"] = edited_content
+
+        self.task_manager._log_event(
+            task_id=task_id,
+            event_type="approval_decision",
+            event_data=approval_data,
+        )
+
         if approved:
             self.task_manager.resume(task_id)
         else:
             self.task_manager.cancel(task_id, reason="user_rejected")
-        
+
         return self.task_manager.get_task(task_id)
+
+    def _get_latest_approval_decision(self, task_id: int) -> Optional[dict]:
+        """
+        Read the most recent approval_decision event for a task.
+
+        Returns:
+            Dict with {"approved": bool, "edited_content": str | None}
+            or None if no decision event exists.
+        """
+        row = self.db.fetch_one(
+            """SELECT event_data FROM task_events
+               WHERE task_id = ? AND event_type = 'approval_decision'
+               ORDER BY created_at DESC LIMIT 1""",
+            (task_id,)
+        )
+        if row:
+            return from_json(row["event_data"])
+        return None

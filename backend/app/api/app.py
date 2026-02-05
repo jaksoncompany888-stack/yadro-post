@@ -5,11 +5,15 @@ Main entry point for the API.
 """
 
 import os
+import time
+import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 
 from .posts import router as posts_router
 from .calendar import router as calendar_router
@@ -20,87 +24,96 @@ from .users import router as users_router
 from .auth import router as auth_router
 from .resources import router as resources_router
 from .deps import get_db, get_memory
+from ..config.logging import get_logger, request_id_var
+from ..storage.migrations import run_migrations
+
+logger = get_logger("api")
+
+
+# ---------------------------------------------------------------------------
+# Middleware
+# ---------------------------------------------------------------------------
+
+
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    """Log every incoming HTTP request with method, path, status and duration.
+    Generates X-Request-ID for log correlation across the entire request lifecycle."""
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        # Generate short request ID (8 hex chars — 4 billion space, no deps)
+        req_id = uuid.uuid4().hex[:8]
+        request.state.request_id = req_id
+        token = request_id_var.set(req_id)  # propagates into JSONFormatter for all logs
+
+        start = time.perf_counter()
+        response = await call_next(request)
+        duration_ms = round((time.perf_counter() - start) * 1000, 1)
+
+        # Expose request ID in response header so client can correlate
+        response.headers["X-Request-ID"] = req_id
+
+        logger.info(
+            "%s %s -> %d [%.1fms]",
+            request.method,
+            request.url.path,
+            response.status_code,
+            duration_ms,
+            extra={"extra_data": {
+                "request_id": req_id,
+                "method": request.method,
+                "path": request.url.path,
+                "status_code": response.status_code,
+                "duration_ms": duration_ms,
+            }}
+        )
+
+        request_id_var.reset(token)
+        return response
+
+
+# ---------------------------------------------------------------------------
+# Lifespan
+# ---------------------------------------------------------------------------
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
-    # Startup: run migrations
     db = get_db()
-    _migrate_drafts_table(db)
-    _migrate_users_role(db)
-    _migrate_users_auth(db)
+
+    # Versioned migrations (idempotent, auto-detects version on existing DBs)
+    run_migrations(db.connection)
 
     # Register SMM tools with services
     from ..tools.smm_tools import register_smm_tools
+    from ..tools.channel_parser import ChannelParser
+    from ..tools.news_monitor import NewsMonitor
     from ..memory.service import MemoryService
+    from ..scheduler import start_scheduler, stop_scheduler
 
     memory_service = MemoryService(db)
-    register_smm_tools(
-        memory_service=memory_service,
-        # channel_parser и news_monitor можно добавить позже
-    )
-    print("[API] SMM tools registered")
+    channel_parser = ChannelParser()
+    news_monitor = NewsMonitor()
 
-    # DISABLED: Background scheduler for auto-publishing
-    # TODO: включить когда будет готова логика
-    # from ..scheduler.background import start_scheduler, stop_scheduler
-    # start_scheduler()
+    register_smm_tools(
+        channel_parser=channel_parser,
+        news_monitor=news_monitor,
+        memory_service=memory_service,
+    )
+    logger.info("SMM tools registered")
+
+    start_scheduler()
+    logger.info("Background scheduler started")
 
     yield
 
-    # Shutdown
-    # stop_scheduler()
+    # Graceful shutdown
+    stop_scheduler()
 
 
-def _migrate_drafts_table(db):
-    """Add metadata column if not exists."""
-    try:
-        # Check if column exists
-        db.execute("SELECT metadata FROM drafts LIMIT 1")
-    except Exception:
-        # Add column
-        db.execute("ALTER TABLE drafts ADD COLUMN metadata TEXT DEFAULT '{}'")
-        print("Migration: added metadata column to drafts")
-
-
-def _migrate_users_role(db):
-    """Add role column to users if not exists."""
-    try:
-        db.execute("SELECT role FROM users LIMIT 1")
-    except Exception:
-        db.execute("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'")
-        print("Migration: added role column to users")
-
-
-def _migrate_users_auth(db):
-    """Add email/password columns for email auth."""
-    try:
-        db.execute("SELECT email FROM users LIMIT 1")
-    except Exception:
-        db.execute("ALTER TABLE users ADD COLUMN email TEXT UNIQUE")
-        print("Migration: added email column to users")
-
-    try:
-        db.execute("SELECT password_hash FROM users LIMIT 1")
-    except Exception:
-        db.execute("ALTER TABLE users ADD COLUMN password_hash TEXT")
-        print("Migration: added password_hash column to users")
-
-    try:
-        db.execute("SELECT first_name FROM users LIMIT 1")
-    except Exception:
-        db.execute("ALTER TABLE users ADD COLUMN first_name TEXT")
-        print("Migration: added first_name column to users")
-
-    try:
-        db.execute("SELECT last_name FROM users LIMIT 1")
-    except Exception:
-        db.execute("ALTER TABLE users ADD COLUMN last_name TEXT")
-        print("Migration: added last_name column to users")
-
-    # Make tg_id nullable (was NOT NULL)
-    # SQLite doesn't support ALTER COLUMN, so we skip this for existing DBs
+# ---------------------------------------------------------------------------
+# App factory
+# ---------------------------------------------------------------------------
 
 
 def create_app() -> FastAPI:
@@ -112,6 +125,9 @@ def create_app() -> FastAPI:
         version="1.0.0",
         lifespan=lifespan,
     )
+
+    # Request logging (outermost — added first, runs last in LIFO stack)
+    app.add_middleware(RequestLoggingMiddleware)
 
     # CORS for Mini App and web
     app.add_middleware(
@@ -138,10 +154,35 @@ def create_app() -> FastAPI:
     app.include_router(users_router, prefix="/api")
     app.include_router(resources_router, prefix="/api")
 
-    # Health check
+    # Health check — проверяет DB + circuit breaker states
     @app.get("/health")
     async def health():
-        return {"status": "ok"}
+        checks = {}
+
+        # DB connectivity
+        try:
+            db = get_db()
+            db.fetch_one("SELECT 1 AS ping")
+            checks["db"] = "ok"
+        except Exception:
+            checks["db"] = "error"
+
+        # Circuit breaker states (из red-priority реализации)
+        try:
+            from ..llm.anthropic_provider import _anthropic_cb
+            checks["anthropic_cb"] = _anthropic_cb.state.value
+        except ImportError:
+            checks["anthropic_cb"] = "unknown"
+
+        try:
+            from ..providers.vk import _vk_cb
+            checks["vk_cb"] = _vk_cb.state.value
+        except ImportError:
+            checks["vk_cb"] = "unknown"
+
+        # overall: ok только если DB доступен
+        overall = "ok" if checks.get("db") == "ok" else "degraded"
+        return {"status": overall, "checks": checks}
 
     # API info
     @app.get("/api")
@@ -167,6 +208,11 @@ def create_app() -> FastAPI:
     # Error handler
     @app.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception):
+        logger.error(
+            "Unhandled exception: %s %s: %s",
+            request.method, request.url.path, exc,
+            exc_info=True,
+        )
         return JSONResponse(
             status_code=500,
             content={
