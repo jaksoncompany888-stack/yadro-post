@@ -73,17 +73,20 @@ export function FormattedText({
     return html
   }
 
-  const lineClampClass = maxLines > 0 ? `line-clamp-${maxLines}` : ''
-
   return (
     <div
       className={clsx(
         // Don't use whitespace-pre-wrap with line-clamp (breaks truncation)
         preserveWhitespace && maxLines === 0 && 'whitespace-pre-wrap',
         'break-words',
-        lineClampClass,
         className
       )}
+      style={maxLines > 0 ? {
+        display: '-webkit-box',
+        WebkitLineClamp: maxLines,
+        WebkitBoxOrient: 'vertical',
+        overflow: 'hidden',
+      } : undefined}
       dangerouslySetInnerHTML={{ __html: formatText(text) }}
     />
   )
