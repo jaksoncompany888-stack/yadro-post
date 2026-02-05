@@ -137,17 +137,17 @@ async def list_channels(
     """Список сохранённых каналов конкурентов для текущего пользователя."""
     user_id = current_user["id"]
 
-    rows = db.execute(
+    rows = db.fetch_all(
         "SELECT username, title, subscribers, description FROM competitor_channels WHERE user_id = ?",
         (user_id,)
-    ).fetchall()
+    )
 
     return [
         ChannelInfo(
-            username=row[0],
-            title=row[1] or row[0],
-            subscribers=row[2] or 0,
-            description=row[3] or ""
+            username=row["username"],
+            title=row["title"] or row["username"],
+            subscribers=row["subscribers"] or 0,
+            description=row["description"] or ""
         )
         for row in rows
     ]
@@ -170,13 +170,13 @@ async def add_channel(
         username = data.channel.replace("@", "").replace("https://t.me/", "")
 
         # Сохраняем в БД (INSERT OR REPLACE для обновления если уже есть)
+        # Database.execute() автоматически делает commit
         db.execute(
             """INSERT OR REPLACE INTO competitor_channels
                (user_id, username, title, subscribers, description)
                VALUES (?, ?, ?, ?, ?)""",
             (user_id, username, info["title"], info["subscribers"], info["description"])
         )
-        db.commit()
 
         channel = ChannelInfo(
             username=username,
@@ -200,11 +200,11 @@ async def remove_channel(
     """Удалить канал из списка конкурентов."""
     user_id = current_user["id"]
 
+    # Database.execute() автоматически делает commit
     db.execute(
         "DELETE FROM competitor_channels WHERE user_id = ? AND username = ?",
         (user_id, username)
     )
-    db.commit()
 
     return {"status": "removed"}
 
