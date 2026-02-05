@@ -29,16 +29,33 @@ export function FormattedText({
 
   // Convert markdown to HTML
   const formatText = (input: string): string => {
+    // Step 1: Extract and preserve allowed HTML tags (<b>, <strong>, <i>, <em>)
+    // Replace them with placeholders to survive XSS escaping
     let html = input
-      // First, convert HTML bold tags to markdown (AI sometimes returns <b> tags)
-      .replace(/<b>(.*?)<\/b>/gi, '**$1**')
-      .replace(/<strong>(.*?)<\/strong>/gi, '**$1**')
-      .replace(/<i>(.*?)<\/i>/gi, '*$1*')
-      .replace(/<em>(.*?)<\/em>/gi, '*$1*')
-      // Escape remaining HTML to prevent XSS
+      .replace(/<b>/gi, '\x00BOLD_OPEN\x00')
+      .replace(/<\/b>/gi, '\x00BOLD_CLOSE\x00')
+      .replace(/<strong>/gi, '\x00BOLD_OPEN\x00')
+      .replace(/<\/strong>/gi, '\x00BOLD_CLOSE\x00')
+      .replace(/<i>/gi, '\x00ITALIC_OPEN\x00')
+      .replace(/<\/i>/gi, '\x00ITALIC_CLOSE\x00')
+      .replace(/<em>/gi, '\x00ITALIC_OPEN\x00')
+      .replace(/<\/em>/gi, '\x00ITALIC_CLOSE\x00')
+
+    // Step 2: Escape remaining HTML to prevent XSS
+    html = html
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
+
+    // Step 3: Restore allowed tags
+    html = html
+      .replace(/\x00BOLD_OPEN\x00/g, '<strong>')
+      .replace(/\x00BOLD_CLOSE\x00/g, '</strong>')
+      .replace(/\x00ITALIC_OPEN\x00/g, '<em>')
+      .replace(/\x00ITALIC_CLOSE\x00/g, '</em>')
+
+    // Step 4: Convert markdown to HTML
+    html = html
       // Bold: **text** or __text__
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/__(.*?)__/g, '<strong>$1</strong>')
