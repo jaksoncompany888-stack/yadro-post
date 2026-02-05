@@ -9,7 +9,9 @@ from pathlib import Path
 @dataclass
 class DatabaseSettings:
     """Database configuration."""
-    path: Path = field(default_factory=lambda: Path("data/yadro.sqlite3"))
+    path: Path = field(default_factory=lambda: Path(
+        os.environ.get("DATABASE_PATH", "data/yadro.db")
+    ))
     wal_mode: bool = True
     busy_timeout_ms: int = 5000
 

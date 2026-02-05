@@ -16,6 +16,14 @@ class ToolImpact(str, Enum):
     HIGH = "high"        # Significant changes, may need approval
 
 
+class ToolValidationError(Exception):
+    """Raised when tool parameters fail schema validation."""
+    def __init__(self, tool_name: str, errors: list):
+        self.tool_name = tool_name
+        self.errors = errors
+        super().__init__(f"Validation failed for '{tool_name}': {'; '.join(errors)}")
+
+
 @dataclass
 class ToolSpec:
     """
