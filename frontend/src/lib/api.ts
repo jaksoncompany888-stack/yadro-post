@@ -156,6 +156,15 @@ export const draftsApi = {
     api.post('/api/posts', { ...data, status: 'draft' }),
 }
 
+// Аналитика
+export const analyticsApi = {
+  // Общая статистика
+  get: (period: string = '30d') => api.get('/api/analytics', { params: { period } }),
+  // Список постов с фильтрами
+  posts: (params?: { channel_id?: string; status?: string; limit?: number; offset?: number }) =>
+    api.get('/api/analytics/posts', { params }),
+}
+
 // Ресурсы пользователя (свой канал + конкуренты)
 export const resourcesApi = {
   // Сводка

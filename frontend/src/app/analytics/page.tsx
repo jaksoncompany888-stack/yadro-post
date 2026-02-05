@@ -18,8 +18,44 @@ import {
   ArrowDownRight,
 } from 'lucide-react'
 import { clsx } from 'clsx'
-import { userChannelsApi } from '@/lib/api'
+import { userChannelsApi, analyticsApi } from '@/lib/api'
 
+// API response types
+interface OverviewStats {
+  total_posts: number
+  draft_posts: number
+  scheduled_posts: number
+  published_posts: number
+  error_posts: number
+  channels_count: number
+}
+
+interface ApiChannelStats {
+  channel_id: string
+  name: string
+  platform: string
+  total_posts: number
+  draft_posts: number
+  scheduled_posts: number
+  published_posts: number
+}
+
+interface DailyStats {
+  date: string
+  posts_created: number
+  posts_published: number
+}
+
+interface ApiPostStats {
+  id: number
+  text_preview: string
+  channel_id: string | null
+  status: string
+  created_at: string
+  publish_at: string | null
+}
+
+// Legacy interface for UI compatibility (with mock engagement data)
 interface ChannelStats {
   channel_id: string
   name: string
@@ -174,22 +210,73 @@ export default function AnalyticsPage() {
   const [stats, setStats] = useState<ChannelStats[]>([])
   const [posts, setPosts] = useState<PostStats[]>([])
   const [selectedChannel, setSelectedChannel] = useState<string>('all')
-  const [period, setPeriod] = useState('7d')
+  const [period, setPeriod] = useState('30d')
   const [showPeriodDropdown, setShowPeriodDropdown] = useState(false)
+  const [overview, setOverview] = useState<OverviewStats | null>(null)
+  const [dailyData, setDailyData] = useState<DailyStats[]>([])
 
   useEffect(() => {
     loadData()
-  }, [])
+  }, [period])
 
   const loadData = async () => {
     try {
-      const response = await userChannelsApi.list()
-      const channelData = response.data || []
+      // Load user channels for display
+      const channelsResponse = await userChannelsApi.list()
+      const channelData = channelsResponse.data || []
       setChannels(channelData)
-      setStats(generateMockStats(channelData))
-      setPosts(generateMockPosts(channelData))
+
+      // Load real analytics from API
+      const analyticsResponse = await analyticsApi.get(period)
+      const analytics = analyticsResponse.data
+
+      // Convert API channel stats to UI format (with mock engagement data for now)
+      const channelStats: ChannelStats[] = (analytics.channels || []).map((ch: ApiChannelStats) => ({
+        channel_id: ch.channel_id,
+        name: ch.name,
+        platform: ch.platform,
+        subscribers: channelData.find((c: any) => c.channel_id === ch.channel_id)?.subscribers || 0,
+        subscribersGrowth: 0, // Not tracked yet
+        totalViews: 0, // Not tracked yet
+        viewsGrowth: 0,
+        reach: 0, // Not tracked yet
+        reachGrowth: 0,
+        engagementRate: 0, // Not tracked yet
+        erGrowth: 0,
+        posts: ch.total_posts,
+        likes: 0, // Not tracked yet
+        comments: 0,
+        shares: 0,
+      }))
+      setStats(channelStats)
+
+      // Convert API posts to UI format
+      const postStats: PostStats[] = (analytics.recent_posts || []).map((p: ApiPostStats) => {
+        const channel = channelData.find((c: any) => c.channel_id === p.channel_id)
+        return {
+          id: p.id,
+          title: p.text_preview || 'Без заголовка',
+          platform: channel?.platform || 'telegram',
+          channelName: channel?.name || p.channel_id || 'Не указан',
+          date: p.created_at?.split('T')[0] || '',
+          reach: 0, // Not tracked yet
+          views: 0,
+          er: 0,
+          likes: 0,
+          comments: 0,
+          shares: 0,
+        }
+      })
+      setPosts(postStats)
+
+      // Store overview for display
+      setOverview(analytics.overview)
+      setDailyData(analytics.daily || [])
     } catch (err) {
-      console.error('Failed to load channels:', err)
+      console.error('Failed to load analytics:', err)
+      // Fallback to mock data on error
+      setStats(generateMockStats(channels))
+      setPosts(generateMockPosts(channels))
     } finally {
       setLoading(false)
     }
@@ -260,10 +347,15 @@ export default function AnalyticsPage() {
     .sort((a, b) => a.er - b.er)
     .slice(0, 10)
 
-  // Generate chart data (mock weekly data)
-  const weeklyViews = Array.from({ length: 7 }, () => Math.floor(Math.random() * 5000) + 1000)
-  const weeklyReach = Array.from({ length: 7 }, () => Math.floor(Math.random() * 3000) + 500)
-  const weeklyEngagement = Array.from({ length: 7 }, () => Math.floor(Math.random() * 500) + 50)
+  // Chart data from real daily stats (or empty array)
+  const sortedDaily = [...dailyData].sort((a, b) => a.date.localeCompare(b.date)).slice(-7)
+  const dailyCreated = sortedDaily.map(d => d.posts_created)
+  const dailyPublished = sortedDaily.map(d => d.posts_published)
+  // Labels for chart
+  const chartLabels = sortedDaily.map(d => {
+    const date = new Date(d.date)
+    return ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'][date.getDay()]
+  }).join(' ')
 
   const periods = [
     { value: '7d', label: 'Последние 7 дней' },
@@ -359,81 +451,85 @@ export default function AnalyticsPage() {
         </div>
       ) : (
         <>
-          {/* Main stats grid */}
+          {/* Main stats grid - using real data from API */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-            {/* Reach */}
+            {/* Total Posts */}
             <div className="bg-card rounded-xl p-6 border border-border">
               <div className="flex items-center justify-between mb-4">
                 <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                  <Target className="w-5 h-5 text-blue-500" />
+                  <BarChart3 className="w-5 h-5 text-blue-500" />
                 </div>
-                {formatGrowth(currentStats.reachGrowth)}
               </div>
-              <div className="text-3xl font-bold mb-1">{formatNumber(currentStats.reach)}</div>
-              <div className="text-sm text-muted-foreground">Охват (Reach)</div>
+              <div className="text-3xl font-bold mb-1">{overview?.total_posts || 0}</div>
+              <div className="text-sm text-muted-foreground">Всего постов</div>
             </div>
 
-            {/* Avg Reach per Post */}
+            {/* Draft Posts */}
             <div className="bg-card rounded-xl p-6 border border-border">
               <div className="flex items-center justify-between mb-4">
-                <div className="w-10 h-10 rounded-lg bg-cyan-500/10 flex items-center justify-center">
-                  <BarChart3 className="w-5 h-5 text-cyan-500" />
+                <div className="w-10 h-10 rounded-lg bg-gray-500/10 flex items-center justify-center">
+                  <Target className="w-5 h-5 text-gray-500" />
                 </div>
               </div>
-              <div className="text-3xl font-bold mb-1">{formatNumber(avgReachPerPost)}</div>
-              <div className="text-sm text-muted-foreground">Ср. охват на пост</div>
+              <div className="text-3xl font-bold mb-1">{overview?.draft_posts || 0}</div>
+              <div className="text-sm text-muted-foreground">Черновики</div>
             </div>
 
-            {/* Views */}
+            {/* Scheduled Posts */}
             <div className="bg-card rounded-xl p-6 border border-border">
               <div className="flex items-center justify-between mb-4">
-                <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                  <Eye className="w-5 h-5 text-purple-500" />
+                <div className="w-10 h-10 rounded-lg bg-yellow-500/10 flex items-center justify-center">
+                  <Calendar className="w-5 h-5 text-yellow-500" />
                 </div>
-                {formatGrowth(currentStats.viewsGrowth)}
               </div>
-              <div className="text-3xl font-bold mb-1">{formatNumber(currentStats.totalViews)}</div>
-              <div className="text-sm text-muted-foreground">Просмотры (Views)</div>
+              <div className="text-3xl font-bold mb-1">{overview?.scheduled_posts || 0}</div>
+              <div className="text-sm text-muted-foreground">Запланировано</div>
             </div>
 
-            {/* Engagement Rate */}
-            <div className="bg-card rounded-xl p-6 border border-border">
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-10 h-10 rounded-lg bg-pink-500/10 flex items-center justify-center">
-                  <Heart className="w-5 h-5 text-pink-500" />
-                </div>
-                {formatGrowth(currentStats.erGrowth)}
-              </div>
-              <div className="text-3xl font-bold mb-1">{currentStats.engagementRate}%</div>
-              <div className="text-sm text-muted-foreground">Вовлечённость (ER)</div>
-            </div>
-
-            {/* Subscribers */}
+            {/* Published Posts */}
             <div className="bg-card rounded-xl p-6 border border-border">
               <div className="flex items-center justify-between mb-4">
                 <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
-                  <Users className="w-5 h-5 text-green-500" />
+                  <TrendingUp className="w-5 h-5 text-green-500" />
                 </div>
-                {formatGrowth(currentStats.subscribersGrowth)}
               </div>
-              <div className="text-3xl font-bold mb-1">{formatNumber(currentStats.subscribers)}</div>
-              <div className="text-sm text-muted-foreground">Подписчики</div>
+              <div className="text-3xl font-bold mb-1">{overview?.published_posts || 0}</div>
+              <div className="text-sm text-muted-foreground">Опубликовано</div>
+            </div>
+
+            {/* Channels Count */}
+            <div className="bg-card rounded-xl p-6 border border-border">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                  <Users className="w-5 h-5 text-purple-500" />
+                </div>
+              </div>
+              <div className="text-3xl font-bold mb-1">{overview?.channels_count || 0}</div>
+              <div className="text-sm text-muted-foreground">Каналов</div>
             </div>
           </div>
 
-          {/* Charts row */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+          {/* Charts row - real data from API */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
             <div className="bg-card rounded-xl p-6 border border-border">
-              <h3 className="font-medium mb-4">Просмотры за неделю</h3>
-              <SimpleBarChart data={weeklyViews} label="Пн Вт Ср Чт Пт Сб Вс" />
+              <h3 className="font-medium mb-4">Создано постов за период</h3>
+              {dailyCreated.length > 0 ? (
+                <SimpleBarChart data={dailyCreated} label={chartLabels || 'Нет данных'} />
+              ) : (
+                <div className="h-24 flex items-center justify-center text-muted-foreground text-sm">
+                  Нет данных за выбранный период
+                </div>
+              )}
             </div>
             <div className="bg-card rounded-xl p-6 border border-border">
-              <h3 className="font-medium mb-4">Охват за неделю</h3>
-              <SimpleBarChart data={weeklyReach} label="Пн Вт Ср Чт Пт Сб Вс" />
-            </div>
-            <div className="bg-card rounded-xl p-6 border border-border">
-              <h3 className="font-medium mb-4">Вовлечённость за неделю</h3>
-              <SimpleBarChart data={weeklyEngagement} label="Пн Вт Ср Чт Пт Сб Вс" />
+              <h3 className="font-medium mb-4">Опубликовано за период</h3>
+              {dailyPublished.length > 0 ? (
+                <SimpleBarChart data={dailyPublished} label={chartLabels || 'Нет данных'} />
+              ) : (
+                <div className="h-24 flex items-center justify-center text-muted-foreground text-sm">
+                  Нет данных за выбранный период
+                </div>
+              )}
             </div>
           </div>
 

@@ -23,6 +23,7 @@ from .notes import router as notes_router
 from .users import router as users_router
 from .auth import router as auth_router
 from .resources import router as resources_router
+from .analytics import router as analytics_router
 from .deps import get_db, get_memory
 from ..config.logging import get_logger, request_id_var
 from ..storage.migrations import run_migrations
@@ -153,6 +154,7 @@ def create_app() -> FastAPI:
     app.include_router(notes_router, prefix="/api")
     app.include_router(users_router, prefix="/api")
     app.include_router(resources_router, prefix="/api")
+    app.include_router(analytics_router, prefix="/api")
 
     # Health check — проверяет DB + circuit breaker states
     @app.get("/health")
