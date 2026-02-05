@@ -16,6 +16,10 @@ from .router import ModelRouter, router
 from .cost_tracker import CostTracker
 from ..storage import Database
 
+from app.config.logging import get_logger
+
+logger = get_logger("llm.service")
+
 
 class LLMError(Exception):
     """Base LLM error."""
@@ -500,8 +504,10 @@ class LLMService:
             for attempt in range(self.MAX_RETRIES):
                 try:
                     return self._execute(request, model_cfg, timeout)
-                except LLMRateLimitError:
-                    # Rate limit - try next model
+                except LLMRateLimitError as e:
+                    # Rate limit - sleep if Retry-After provided, then try next model
+                    if e.retry_after:
+                        time.sleep(min(e.retry_after, 60))  # cap at 60s
                     break
                 except LLMTimeoutError as e:
                     last_error = e
@@ -512,7 +518,14 @@ class LLMService:
                 except LLMError as e:
                     last_error = e
                     break
-        
+                except Exception as e:
+                    # Catch CircuitBreakerError and other non-LLM exceptions
+                    from .circuit_breaker import CircuitBreakerError
+                    if isinstance(e, CircuitBreakerError):
+                        last_error = e
+                        break  # circuit open — skip to next model in fallback chain
+                    raise  # re-raise truly unexpected errors
+
         # All retries failed - use mock
         return self._mock_response(request, MODELS["mock"])
     
@@ -523,9 +536,9 @@ class LLMService:
         timeout: int,
     ) -> LLMResponse:
         """Execute single request."""
-        print(f"[LLMService] _execute: model={model_config.name}, provider={model_config.provider}, mock_mode={self._mock_mode}")
+        logger.debug("_execute: model=%s, provider=%s, mock_mode=%s", model_config.name, model_config.provider, self._mock_mode)
         if self._mock_mode or model_config.provider == LLMProvider.MOCK:
-            print(f"[LLMService] Using MOCK response")
+            logger.debug("Using MOCK response")
             return self._mock_response(request, model_config)
         
         # Real OpenAI API call
@@ -541,7 +554,7 @@ class LLMService:
 
         # Real Anthropic API call
         if model_config.provider == LLMProvider.ANTHROPIC:
-            print(f"[LLMService] Using Anthropic provider, has_key={bool(self._anthropic_api_key)}")
+            logger.debug("Using Anthropic provider, has_key=%s", bool(self._anthropic_api_key))
             from .anthropic_provider import AnthropicProvider
             provider = AnthropicProvider(api_key=self._anthropic_api_key)
             return provider.complete(

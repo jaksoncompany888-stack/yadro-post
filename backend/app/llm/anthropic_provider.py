@@ -5,15 +5,16 @@ Real Anthropic Claude API integration.
 """
 import os
 import json
-import logging
 import urllib.request
 import urllib.error
 from typing import List, Optional
 
 from .models import LLMResponse, Message, MessageRole, LLMProvider, MODELS
+
+from app.config.logging import get_logger
 from .circuit_breaker import CircuitBreaker, CircuitBreakerError
 
-logger = logging.getLogger("yadro.llm.anthropic")
+logger = get_logger("llm.anthropic")
 
 # Module-level circuit breaker — singleton per process lifetime
 _anthropic_cb = CircuitBreaker(failure_threshold=5, window_seconds=60, open_timeout_seconds=30)
@@ -110,7 +111,7 @@ class AnthropicProvider:
                     retry_after=retry_after,
                 )
 
-            logger.error("HTTP Error %s: %s", e.code, error_body)
+            logger.error("HTTP Error %s: %s", e.code, error_body, exc_info=True)
             raise Exception(f"Anthropic API error {e.code}: {error_body}")
 
         except CircuitBreakerError:
@@ -118,7 +119,7 @@ class AnthropicProvider:
 
         except Exception as e:
             _anthropic_cb.record_failure()
-            logger.error("Request failed: %s", e)
+            logger.error("Request failed: %s", e, exc_info=True)
             raise
 
         # Parse response
