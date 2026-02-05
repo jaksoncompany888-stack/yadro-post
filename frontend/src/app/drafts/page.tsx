@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { FileText, Clock, Trash2, Edit, Loader2, Search } from 'lucide-react'
 import Link from 'next/link'
 import { postsApi } from '@/lib/api'
+import { FormattedText } from '@/components/formatted-text'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 
@@ -138,18 +139,12 @@ export default function DraftsPage() {
                       <h3 className="font-medium mb-1 truncate">{draft.topic}</h3>
                     )}
 
-                    {/* Text preview */}
-                    <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
-                      {draft.text
-                        .replace(/<b>(.*?)<\/b>/gi, '$1')
-                        .replace(/<strong>(.*?)<\/strong>/gi, '$1')
-                        .replace(/<i>(.*?)<\/i>/gi, '$1')
-                        .replace(/<em>(.*?)<\/em>/gi, '$1')
-                        .replace(/\*\*(.*?)\*\*/g, '$1')
-                        .replace(/\*([^*]+)\*/g, '$1')
-                        .replace(/_([^_]+)_/g, '$1')
-                      }
-                    </p>
+                    {/* Text preview with formatting */}
+                    <FormattedText
+                      text={draft.text}
+                      maxLines={2}
+                      className="text-sm text-muted-foreground mb-3"
+                    />
 
                     {/* Meta */}
                     <div className="flex items-center gap-4 text-xs text-muted-foreground">
