@@ -20,16 +20,15 @@ from .users import router as users_router
 from .auth import router as auth_router
 from .resources import router as resources_router
 from .deps import get_db, get_memory
+from ..storage.migrations import run_migrations
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
-    # Startup: run migrations
+    # Startup: run versioned migrations
     db = get_db()
-    _migrate_drafts_table(db)
-    _migrate_users_role(db)
-    _migrate_users_auth(db)
+    run_migrations(db.connection)
 
     # Register SMM tools with services
     from ..tools.smm_tools import register_smm_tools
@@ -51,56 +50,6 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     # stop_scheduler()
-
-
-def _migrate_drafts_table(db):
-    """Add metadata column if not exists."""
-    try:
-        # Check if column exists
-        db.execute("SELECT metadata FROM drafts LIMIT 1")
-    except Exception:
-        # Add column
-        db.execute("ALTER TABLE drafts ADD COLUMN metadata TEXT DEFAULT '{}'")
-        print("Migration: added metadata column to drafts")
-
-
-def _migrate_users_role(db):
-    """Add role column to users if not exists."""
-    try:
-        db.execute("SELECT role FROM users LIMIT 1")
-    except Exception:
-        db.execute("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'")
-        print("Migration: added role column to users")
-
-
-def _migrate_users_auth(db):
-    """Add email/password columns for email auth."""
-    try:
-        db.execute("SELECT email FROM users LIMIT 1")
-    except Exception:
-        db.execute("ALTER TABLE users ADD COLUMN email TEXT UNIQUE")
-        print("Migration: added email column to users")
-
-    try:
-        db.execute("SELECT password_hash FROM users LIMIT 1")
-    except Exception:
-        db.execute("ALTER TABLE users ADD COLUMN password_hash TEXT")
-        print("Migration: added password_hash column to users")
-
-    try:
-        db.execute("SELECT first_name FROM users LIMIT 1")
-    except Exception:
-        db.execute("ALTER TABLE users ADD COLUMN first_name TEXT")
-        print("Migration: added first_name column to users")
-
-    try:
-        db.execute("SELECT last_name FROM users LIMIT 1")
-    except Exception:
-        db.execute("ALTER TABLE users ADD COLUMN last_name TEXT")
-        print("Migration: added last_name column to users")
-
-    # Make tg_id nullable (was NOT NULL)
-    # SQLite doesn't support ALTER COLUMN, so we skip this for existing DBs
 
 
 def create_app() -> FastAPI:
