@@ -45,7 +45,7 @@ const EMOJI_LIST = [
 function CreatePostPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const editorRef = useRef<HTMLDivElement>(null)
   const [channels, setChannels] = useState<UserChannel[]>([])
   const [selectedChannels, setSelectedChannels] = useState<string[]>([])
   const [content, setContent] = useState('')
@@ -61,8 +61,6 @@ function CreatePostPage() {
   const [showConfirmExit, setShowConfirmExit] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
-  const [selectionStart, setSelectionStart] = useState(0)
-  const [selectionEnd, setSelectionEnd] = useState(0)
   const [editingDraftId, setEditingDraftId] = useState<number | null>(null)
   const [loadingDraft, setLoadingDraft] = useState(false)
 
@@ -153,108 +151,146 @@ function CreatePostPage() {
     }
   }
 
-  // Track selection in textarea
-  const handleSelect = () => {
-    if (textareaRef.current) {
-      setSelectionStart(textareaRef.current.selectionStart)
-      setSelectionEnd(textareaRef.current.selectionEnd)
+  // Get plain text from editor (strip HTML)
+  const getPlainText = (html: string): string => {
+    return html
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/div>/gi, '\n')
+      .replace(/<\/p>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/\n+/g, '\n')
+      .trim()
+  }
+
+  // Convert plain text to HTML for editor
+  const textToHtml = (text: string): string => {
+    if (!text) return ''
+
+    let html = text
+
+    // First preserve existing HTML bold/italic tags
+    html = html
+      .replace(/<b>/gi, '\x00BOLD_OPEN\x00')
+      .replace(/<\/b>/gi, '\x00BOLD_CLOSE\x00')
+      .replace(/<strong>/gi, '\x00BOLD_OPEN\x00')
+      .replace(/<\/strong>/gi, '\x00BOLD_CLOSE\x00')
+      .replace(/<i>/gi, '\x00ITALIC_OPEN\x00')
+      .replace(/<\/i>/gi, '\x00ITALIC_CLOSE\x00')
+      .replace(/<em>/gi, '\x00ITALIC_OPEN\x00')
+      .replace(/<\/em>/gi, '\x00ITALIC_CLOSE\x00')
+
+    // Escape remaining HTML
+    html = html
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+
+    // Restore preserved tags
+    html = html
+      .replace(/\x00BOLD_OPEN\x00/g, '<b>')
+      .replace(/\x00BOLD_CLOSE\x00/g, '</b>')
+      .replace(/\x00ITALIC_OPEN\x00/g, '<i>')
+      .replace(/\x00ITALIC_CLOSE\x00/g, '</i>')
+
+    // Convert markdown to HTML
+    html = html
+      .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+      .replace(/__(.*?)__/g, '<b>$1</b>')
+      .replace(/(?<![a-zA-Z0-9])_([^_\n]+?)_(?![a-zA-Z0-9])/g, '<i>$1</i>')
+      .replace(/\n/g, '<br>')
+
+    return html
+  }
+
+  // Update editor content when content state changes (e.g., from AI generation)
+  useEffect(() => {
+    if (editorRef.current && content) {
+      const currentHtml = editorRef.current.innerHTML
+      const newHtml = textToHtml(content)
+      // Only update if different to avoid cursor jump
+      if (getPlainText(currentHtml) !== content) {
+        editorRef.current.innerHTML = newHtml
+      }
+    }
+  }, [content])
+
+  // Handle editor input
+  const handleEditorInput = () => {
+    if (editorRef.current) {
+      const html = editorRef.current.innerHTML
+      const plainText = getPlainText(html)
+      // Convert HTML formatting back to markdown-like syntax for storage
+      let text = html
+        .replace(/<b>(.*?)<\/b>/gi, '**$1**')
+        .replace(/<strong>(.*?)<\/strong>/gi, '**$1**')
+        .replace(/<i>(.*?)<\/i>/gi, '_$1_')
+        .replace(/<em>(.*?)<\/em>/gi, '_$1_')
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/div>/gi, '\n')
+        .replace(/<\/p>/gi, '\n')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+      setContent(text)
     }
   }
 
-  // Insert text at cursor position
-  const insertText = (before: string, after: string = '') => {
-    const textarea = textareaRef.current
-    if (!textarea) return
-
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-    const selectedText = content.substring(start, end)
-
-    const newText = content.substring(0, start) + before + selectedText + after + content.substring(end)
-    setContent(newText)
-
-    // Set cursor position after insert
-    setTimeout(() => {
-      textarea.focus()
-      const newCursorPos = start + before.length + selectedText.length + after.length
-      textarea.setSelectionRange(
-        selectedText ? newCursorPos : start + before.length,
-        selectedText ? newCursorPos : start + before.length
-      )
-    }, 0)
+  // Format text with execCommand (works with contenteditable)
+  const formatBold = () => {
+    document.execCommand('bold', false)
+    editorRef.current?.focus()
+    handleEditorInput()
   }
 
-  // Format text with markdown
-  const formatBold = () => insertText('**', '**')
-  const formatItalic = () => insertText('_', '_')
+  const formatItalic = () => {
+    document.execCommand('italic', false)
+    editorRef.current?.focus()
+    handleEditorInput()
+  }
 
   const formatBulletList = () => {
-    const textarea = textareaRef.current
-    if (!textarea) return
-
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-    const selectedText = content.substring(start, end)
-
-    if (selectedText) {
-      // Format selected lines as list
-      const lines = selectedText.split('\n')
-      const formatted = lines.map(line => line.trim() ? `• ${line}` : line).join('\n')
-      const newText = content.substring(0, start) + formatted + content.substring(end)
-      setContent(newText)
-    } else {
-      // Insert bullet at cursor
-      insertText('• ')
-    }
+    document.execCommand('insertUnorderedList', false)
+    editorRef.current?.focus()
+    handleEditorInput()
   }
 
   const formatNumberedList = () => {
-    const textarea = textareaRef.current
-    if (!textarea) return
-
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-    const selectedText = content.substring(start, end)
-
-    if (selectedText) {
-      // Format selected lines as numbered list
-      const lines = selectedText.split('\n')
-      const formatted = lines.map((line, i) => line.trim() ? `${i + 1}. ${line}` : line).join('\n')
-      const newText = content.substring(0, start) + formatted + content.substring(end)
-      setContent(newText)
-    } else {
-      // Insert number at cursor
-      insertText('1. ')
-    }
+    document.execCommand('insertOrderedList', false)
+    editorRef.current?.focus()
+    handleEditorInput()
   }
 
   const insertEmoji = (emoji: string) => {
-    insertText(emoji)
+    document.execCommand('insertText', false, emoji)
+    editorRef.current?.focus()
+    handleEditorInput()
     setShowEmojiPicker(false)
   }
 
   const insertHashtag = () => {
-    insertText('#')
+    document.execCommand('insertText', false, '#')
+    editorRef.current?.focus()
+    handleEditorInput()
   }
 
   const insertLink = () => {
+    const selection = window.getSelection()
+    const selectedText = selection?.toString() || ''
     const url = prompt('Введите URL:')
     if (url) {
-      const textarea = textareaRef.current
-      if (!textarea) return
-
-      const start = textarea.selectionStart
-      const end = textarea.selectionEnd
-      const selectedText = content.substring(start, end)
-
       if (selectedText) {
-        // Wrap selected text in link
-        insertText(`[${selectedText}](${url})`, '')
-        const newText = content.substring(0, start) + `[${selectedText}](${url})` + content.substring(end)
-        setContent(newText)
+        document.execCommand('createLink', false, url)
       } else {
-        insertText(url)
+        document.execCommand('insertText', false, url)
       }
+      editorRef.current?.focus()
+      handleEditorInput()
     }
   }
 
@@ -603,13 +639,12 @@ function CreatePostPage() {
           </div>
         </div>
 
-        {/* Content editor */}
-        <div className="flex-1 p-6">
-          <textarea
-            ref={textareaRef}
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            onSelect={handleSelect}
+        {/* Content editor - contenteditable for rich text */}
+        <div className="flex-1 p-6 overflow-auto">
+          <div
+            ref={editorRef}
+            contentEditable
+            onInput={handleEditorInput}
             onKeyDown={(e) => {
               // Keyboard shortcuts
               if (e.ctrlKey || e.metaKey) {
@@ -622,11 +657,12 @@ function CreatePostPage() {
                 }
               }
             }}
-            placeholder={isNoteMode
+            data-placeholder={isNoteMode
               ? "Запишите идею или напоминание..."
               : "Напишите текст поста или сгенерируйте с помощью AI..."
             }
-            className="w-full h-full bg-transparent resize-none focus:outline-none text-lg leading-relaxed"
+            className="w-full h-full bg-transparent focus:outline-none text-lg leading-relaxed empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground"
+            style={{ minHeight: '200px' }}
           />
         </div>
 
