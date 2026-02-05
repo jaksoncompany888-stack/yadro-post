@@ -30,7 +30,12 @@ export function FormattedText({
   // Convert markdown to HTML
   const formatText = (input: string): string => {
     let html = input
-      // Escape HTML to prevent XSS
+      // First, convert HTML bold tags to markdown (AI sometimes returns <b> tags)
+      .replace(/<b>(.*?)<\/b>/gi, '**$1**')
+      .replace(/<strong>(.*?)<\/strong>/gi, '**$1**')
+      .replace(/<i>(.*?)<\/i>/gi, '*$1*')
+      .replace(/<em>(.*?)<\/em>/gi, '*$1*')
+      // Escape remaining HTML to prevent XSS
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
@@ -81,8 +86,14 @@ export function TextPreview({
 }) {
   if (!text) return null
 
-  // Strip markdown for preview
+  // Strip markdown and HTML tags for preview
   const plainText = text
+    // Convert HTML tags to markdown first
+    .replace(/<b>(.*?)<\/b>/gi, '$1')
+    .replace(/<strong>(.*?)<\/strong>/gi, '$1')
+    .replace(/<i>(.*?)<\/i>/gi, '$1')
+    .replace(/<em>(.*?)<\/em>/gi, '$1')
+    // Strip markdown
     .replace(/\*\*(.*?)\*\*/g, '$1')
     .replace(/__(.*?)__/g, '$1')
     .replace(/\*([^*]+)\*/g, '$1')
