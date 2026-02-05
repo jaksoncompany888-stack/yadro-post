@@ -126,7 +126,7 @@ export default function DraftsPage() {
         </div>
       ) : (
         <div className="flex-1 overflow-auto">
-          <div className="grid gap-4 max-w-4xl">
+          <div className="grid gap-4">
             {filteredDrafts.map((draft) => (
               <div
                 key={draft.id}

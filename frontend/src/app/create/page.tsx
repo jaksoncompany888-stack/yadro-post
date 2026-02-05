@@ -375,9 +375,34 @@ function CreatePostPage() {
 
   // Render formatted content for preview
   const renderFormattedContent = (text: string) => {
-    // Simple markdown rendering for preview
+    // Step 1: Preserve allowed HTML tags through XSS escaping
     let html = text
+      .replace(/<b>/gi, '\x00BOLD_OPEN\x00')
+      .replace(/<\/b>/gi, '\x00BOLD_CLOSE\x00')
+      .replace(/<strong>/gi, '\x00BOLD_OPEN\x00')
+      .replace(/<\/strong>/gi, '\x00BOLD_CLOSE\x00')
+      .replace(/<i>/gi, '\x00ITALIC_OPEN\x00')
+      .replace(/<\/i>/gi, '\x00ITALIC_CLOSE\x00')
+      .replace(/<em>/gi, '\x00ITALIC_OPEN\x00')
+      .replace(/<\/em>/gi, '\x00ITALIC_CLOSE\x00')
+
+    // Step 2: Escape remaining HTML
+    html = html
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+
+    // Step 3: Restore allowed tags
+    html = html
+      .replace(/\x00BOLD_OPEN\x00/g, '<strong>')
+      .replace(/\x00BOLD_CLOSE\x00/g, '</strong>')
+      .replace(/\x00ITALIC_OPEN\x00/g, '<em>')
+      .replace(/\x00ITALIC_CLOSE\x00/g, '</em>')
+
+    // Step 4: Convert markdown to HTML
+    html = html
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/__(.*?)__/g, '<strong>$1</strong>')
       .replace(/_(.*?)_/g, '<em>$1</em>')
       .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" class="text-primary underline">$1</a>')
 
