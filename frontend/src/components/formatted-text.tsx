@@ -105,11 +105,15 @@ export function TextPreview({
 
   // Strip markdown and HTML tags for preview
   const plainText = text
-    // Convert HTML tags to markdown first
-    .replace(/<b>(.*?)<\/b>/gi, '$1')
-    .replace(/<strong>(.*?)<\/strong>/gi, '$1')
-    .replace(/<i>(.*?)<\/i>/gi, '$1')
-    .replace(/<em>(.*?)<\/em>/gi, '$1')
+    // Remove HTML tags completely (handles multiline)
+    .replace(/<b>/gi, '')
+    .replace(/<\/b>/gi, '')
+    .replace(/<strong>/gi, '')
+    .replace(/<\/strong>/gi, '')
+    .replace(/<i>/gi, '')
+    .replace(/<\/i>/gi, '')
+    .replace(/<em>/gi, '')
+    .replace(/<\/em>/gi, '')
     // Strip markdown
     .replace(/\*\*(.*?)\*\*/g, '$1')
     .replace(/__(.*?)__/g, '$1')
