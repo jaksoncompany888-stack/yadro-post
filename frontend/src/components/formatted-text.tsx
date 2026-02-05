@@ -67,8 +67,8 @@ export function FormattedText({
         /\[([^\]]+)\]\(([^)]+)\)/g,
         '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-primary underline hover:text-primary/80">$1</a>'
       )
-      // Line breaks
-      .replace(/\n/g, '<br />')
+      // Line breaks - use space for truncated preview, br for full text
+      .replace(/\n/g, maxLines > 0 ? ' ' : '<br />')
 
     return html
   }
@@ -78,7 +78,8 @@ export function FormattedText({
   return (
     <div
       className={clsx(
-        preserveWhitespace && 'whitespace-pre-wrap',
+        // Don't use whitespace-pre-wrap with line-clamp (breaks truncation)
+        preserveWhitespace && maxLines === 0 && 'whitespace-pre-wrap',
         'break-words',
         lineClampClass,
         className
