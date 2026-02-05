@@ -86,13 +86,29 @@ async def lifespan(app: FastAPI):
 
     # Register SMM tools with services
     from ..tools.smm_tools import register_smm_tools
+    from ..tools.channel_parser import ChannelParser
+    from ..tools.news_monitor import NewsMonitor
     from ..memory.service import MemoryService
+    from ..scheduler import start_scheduler, stop_scheduler
 
     memory_service = MemoryService(db)
-    register_smm_tools(memory_service=memory_service)
+    channel_parser = ChannelParser()
+    news_monitor = NewsMonitor()
+
+    register_smm_tools(
+        channel_parser=channel_parser,
+        news_monitor=news_monitor,
+        memory_service=memory_service,
+    )
     logger.info("SMM tools registered")
 
+    start_scheduler()
+    logger.info("Background scheduler started")
+
     yield
+
+    # Graceful shutdown
+    stop_scheduler()
 
 
 # ---------------------------------------------------------------------------
