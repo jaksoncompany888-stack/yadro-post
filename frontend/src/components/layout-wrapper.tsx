@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation'
 import { Sidebar } from '@/components/sidebar'
+import { Onboarding } from '@/components/onboarding'
 
 // Страницы без сайдбара
 const NO_SIDEBAR_PATHS = ['/login']
@@ -21,6 +22,8 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
       <main className="flex-1 overflow-auto pb-20 md:pb-0">
         {children}
       </main>
+      {/* Onboarding для новых пользователей */}
+      <Onboarding />
     </div>
   )
 }
