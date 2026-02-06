@@ -8,6 +8,7 @@ User Channels API
 """
 
 import os
+import re
 from typing import List, Optional
 from pydantic import BaseModel
 
@@ -19,6 +20,46 @@ from .deps import get_current_user, get_db
 
 
 router = APIRouter(prefix="/user-channels", tags=["user-channels"])
+
+
+def _parse_telegram_channel_id(raw_input: str) -> str:
+    """
+    Parse various Telegram channel input formats:
+    - @username -> @username
+    - username -> @username
+    - https://t.me/username -> @username
+    - t.me/username -> @username
+    - https://t.me/c/123456789/1 -> -100123456789 (private channel)
+    - -100123456789 -> -100123456789
+    """
+    raw_input = raw_input.strip()
+
+    # Already a numeric ID
+    if raw_input.startswith("-"):
+        return raw_input
+
+    # Parse t.me URLs
+    # Match: https://t.me/username, http://t.me/username, t.me/username
+    url_pattern = r"(?:https?://)?t\.me/(?:c/)?(\d+|[a-zA-Z_][a-zA-Z0-9_]*)"
+    match = re.match(url_pattern, raw_input, re.IGNORECASE)
+
+    if match:
+        channel_part = match.group(1)
+        # If it's numeric (private channel via t.me/c/ID)
+        if channel_part.isdigit():
+            return f"-100{channel_part}"
+        # Public channel username
+        return f"@{channel_part}"
+
+    # Remove @ if present, then add it back
+    username = raw_input.lstrip("@")
+
+    # Validate username format (basic check)
+    if username and re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", username):
+        return f"@{username}"
+
+    # Return as-is with @ for API to validate
+    return f"@{username}" if username else raw_input
 
 
 # =============================================================================
@@ -149,10 +190,8 @@ async def add_user_channel(
     """
     user_id = user["id"]
 
-    # Нормализуем channel_id
-    channel_id = data.channel_id.strip()
-    if not channel_id.startswith("@") and not channel_id.startswith("-"):
-        channel_id = f"@{channel_id}"
+    # Парсим channel_id (поддержка URL, @username, username)
+    channel_id = _parse_telegram_channel_id(data.channel_id)
 
     if data.platform == "telegram":
         # Use posting bot for channel operations
@@ -257,9 +296,7 @@ async def validate_channel(
     Проверить что бот может постить в канал (без добавления).
     """
     # Просто вызываем add но не сохраняем
-    channel_id = data.channel_id.strip()
-    if not channel_id.startswith("@") and not channel_id.startswith("-"):
-        channel_id = f"@{channel_id}"
+    channel_id = _parse_telegram_channel_id(data.channel_id)
 
     if data.platform == "telegram":
         # Use posting bot for channel validation
