@@ -93,10 +93,22 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
 const STORAGE_KEY = 'kerno-onboarding-completed'
 const STEPS_KEY = 'kerno-onboarding-steps'
 
+// Global event for opening onboarding from anywhere
+export const openOnboarding = () => {
+  window.dispatchEvent(new CustomEvent('open-onboarding'))
+}
+
 export function Onboarding() {
   const [isOpen, setIsOpen] = useState(false)
   const [completedSteps, setCompletedSteps] = useState<string[]>([])
   const [expandedStep, setExpandedStep] = useState<string | null>(null)
+
+  // Listen for open-onboarding event
+  useEffect(() => {
+    const handleOpen = () => setIsOpen(true)
+    window.addEventListener('open-onboarding', handleOpen)
+    return () => window.removeEventListener('open-onboarding', handleOpen)
+  }, [])
 
   // Load state from localStorage
   useEffect(() => {
@@ -139,16 +151,8 @@ export function Onboarding() {
   }
 
   if (!isOpen) {
-    return (
-      // Small button to reopen onboarding
-      <button
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-20 md:bottom-4 right-4 z-40 w-10 h-10 bg-primary/20 hover:bg-primary/30 rounded-full flex items-center justify-center text-primary transition-colors"
-        title="Инструкция"
-      >
-        <span className="text-lg">?</span>
-      </button>
-    )
+    // No floating button - onboarding can be reopened from sidebar menu
+    return null
   }
 
   const progress = (completedSteps.length / ONBOARDING_STEPS.length) * 100

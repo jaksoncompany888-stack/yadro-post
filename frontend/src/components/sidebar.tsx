@@ -20,9 +20,11 @@ import {
   StickyNote,
   Users,
   LogOut,
+  HelpCircle,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { usersApi, authApi } from '@/lib/api'
+import { openOnboarding } from '@/components/onboarding'
 
 // Роли: admin, smm, user
 type UserRole = 'admin' | 'smm' | 'user'
@@ -272,6 +274,18 @@ export function Sidebar() {
                 )
               })}
             </div>
+
+            {/* Help / Onboarding */}
+            <button
+              onClick={() => {
+                setShowMobileMenu(false)
+                openOnboarding()
+              }}
+              className="w-full py-4 bg-primary/10 text-primary rounded-xl flex items-center justify-center gap-3 mb-3"
+            >
+              <HelpCircle className="w-5 h-5" />
+              <span>Инструкция</span>
+            </button>
 
             {/* Theme Toggle */}
             <button
