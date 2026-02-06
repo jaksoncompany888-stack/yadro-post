@@ -446,11 +446,11 @@ function CreatePostPage() {
   }
 
   return (
-    <div className="h-full flex">
+    <div className="h-full flex flex-col md:flex-row">
       {/* Left panel — editor */}
-      <div className="flex-1 flex flex-col border-r border-border">
+      <div className="flex-1 flex flex-col md:border-r border-border min-h-0">
         {/* Header */}
-        <div className="h-16 px-6 border-b border-border flex items-center gap-4">
+        <div className="h-14 md:h-16 px-4 md:px-6 border-b border-border flex items-center gap-3 md:gap-4 shrink-0">
           <button
             onClick={handleExit}
             className="p-2 rounded-lg hover:bg-secondary transition-colors"
@@ -458,15 +458,27 @@ function CreatePostPage() {
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="text-xl font-semibold">
-            {isNoteMode ? 'Создать заметку' : editingDraftId ? 'Редактировать черновик' : 'Создать пост'}
+          <h1 className="text-lg md:text-xl font-semibold flex-1">
+            {isNoteMode ? 'Создать заметку' : editingDraftId ? 'Редактировать' : 'Создать пост'}
           </h1>
           {loadingDraft && <Loader2 className="w-5 h-5 animate-spin text-primary" />}
+          {/* Mobile preview button */}
+          {content && !isNoteMode && (
+            <button
+              className="md:hidden p-2 rounded-lg hover:bg-secondary transition-colors"
+              onClick={() => {
+                // Scroll to show preview in a modal or alert
+                alert('Превью:\n\n' + content.substring(0, 500) + (content.length > 500 ? '...' : ''))
+              }}
+            >
+              <Eye className="w-5 h-5 text-muted-foreground" />
+            </button>
+          )}
         </div>
 
         {/* Channel selection - только для постов */}
         {!isNoteMode && (
-          <div className="px-6 py-4 border-b border-border">
+          <div className="px-4 md:px-6 py-3 md:py-4 border-b border-border shrink-0">
             <div className="flex items-center gap-2 mb-3">
               <span className="text-sm text-muted-foreground">Каналы:</span>
               {loadingChannels ? (
@@ -476,7 +488,7 @@ function CreatePostPage() {
               ) : null}
             </div>
 
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-2 md:gap-3">
               {channels.map((channel) => (
                 <button
                   type="button"
@@ -486,25 +498,25 @@ function CreatePostPage() {
                     e.preventDefault()
                     toggleChannel(channel.channel_id)
                   }}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-full border-2 transition-all cursor-pointer select-none active:scale-95 ${
+                  className={`flex items-center gap-2 px-2 md:px-3 py-1.5 md:py-2 rounded-full border-2 transition-all cursor-pointer select-none active:scale-95 ${
                     selectedChannels.includes(channel.channel_id)
                       ? 'border-primary bg-primary/10'
                       : 'border-border hover:border-primary/50 grayscale'
                   }`}
                 >
                   <div className="relative">
-                    <div className="w-8 h-8 rounded-full bg-blue-400/20 flex items-center justify-center">
-                      <Send className="w-4 h-4 text-blue-400" />
+                    <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-blue-400/20 flex items-center justify-center">
+                      <Send className="w-3.5 h-3.5 md:w-4 md:h-4 text-blue-400" />
                     </div>
                     {selectedChannels.includes(channel.channel_id) && (
-                      <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-primary rounded-full flex items-center justify-center">
-                        <Check className="w-3 h-3 text-white" />
+                      <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 md:w-4 md:h-4 bg-primary rounded-full flex items-center justify-center">
+                        <Check className="w-2.5 h-2.5 md:w-3 md:h-3 text-white" />
                       </div>
                     )}
                   </div>
                   <div className="text-left">
-                    <div className="text-sm font-medium">{channel.name}</div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-xs md:text-sm font-medium">{channel.name}</div>
+                    <div className="text-[10px] md:text-xs text-muted-foreground">
                       {formatNumber(channel.subscribers)}
                     </div>
                   </div>
@@ -525,27 +537,28 @@ function CreatePostPage() {
 
         {/* AI generation - только для постов */}
         {!isNoteMode && (
-          <div className="px-6 py-4 border-b border-border">
-            <div className="flex gap-3">
+          <div className="px-4 md:px-6 py-3 md:py-4 border-b border-border shrink-0">
+            <div className="flex gap-2 md:gap-3">
               <input
                 type="text"
                 placeholder="Тема для генерации..."
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && generateContent()}
-                className="flex-1 bg-input rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                className="flex-1 min-w-0 bg-input rounded-lg px-3 md:px-4 py-2 text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-primary"
               />
               <button
                 onClick={generateContent}
                 disabled={isGenerating || !topic.trim()}
-                className="px-4 py-2 btn-core text-white rounded-lg flex items-center gap-2 disabled:opacity-50"
+                className="px-3 md:px-4 py-2 btn-core text-white rounded-lg flex items-center gap-1.5 md:gap-2 disabled:opacity-50 shrink-0"
               >
                 {isGenerating ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <Wand2 className="w-4 h-4" />
                 )}
-                Сгенерировать
+                <span className="hidden sm:inline">Сгенерировать</span>
+                <span className="sm:hidden">AI</span>
               </button>
             </div>
           </div>
@@ -561,7 +574,7 @@ function CreatePostPage() {
         )}
 
         {/* Formatting toolbar */}
-        <div className="px-6 py-2 border-b border-border flex items-center gap-1">
+        <div className="px-4 md:px-6 py-2 border-b border-border flex items-center gap-0.5 md:gap-1 overflow-x-auto shrink-0">
           <button
             onClick={formatBold}
             className="p-2 rounded-lg hover:bg-secondary transition-colors"
@@ -682,27 +695,29 @@ function CreatePostPage() {
         )}
 
         {/* Bottom action bar */}
-        <div className="h-20 px-6 border-t border-border flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground">
-              {content.length} символов
-            </span>
-          </div>
+        <div className="shrink-0 px-4 md:px-6 py-3 md:py-4 border-t border-border mb-16 md:mb-0">
+          {/* Mobile: stacked layout */}
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="hidden md:flex items-center gap-4">
+              <span className="text-sm text-muted-foreground">
+                {content.length} символов
+              </span>
+            </div>
 
-          <div className="flex items-center gap-3">
-            {/* Schedule - для постов и заметок */}
-            <div className="relative">
-              <button
-                onClick={() => setShowSchedule(!showSchedule)}
-                className="px-4 py-2 bg-secondary rounded-lg flex items-center gap-2 hover:bg-secondary/80"
-              >
-                <Calendar className="w-4 h-4" />
-                {isNoteMode ? 'Добавить в календарь' : 'Запланировать'}
-                <ChevronDown className={`w-4 h-4 transition-transform ${showSchedule ? 'rotate-180' : ''}`} />
-              </button>
+            <div className="flex items-center gap-2 md:gap-3">
+              {/* Schedule - для постов и заметок */}
+              <div className="relative flex-1 md:flex-none">
+                <button
+                  onClick={() => setShowSchedule(!showSchedule)}
+                  className="w-full md:w-auto px-3 md:px-4 py-2.5 md:py-2 bg-secondary rounded-lg flex items-center justify-center gap-2 hover:bg-secondary/80 text-sm"
+                >
+                  <Calendar className="w-4 h-4" />
+                  <span className="hidden sm:inline">{isNoteMode ? 'В календарь' : 'Запланировать'}</span>
+                  <ChevronDown className={`w-4 h-4 transition-transform ${showSchedule ? 'rotate-180' : ''}`} />
+                </button>
 
-              {showSchedule && (
-                <div className="absolute bottom-full mb-2 right-0 bg-card border border-border rounded-xl p-4 shadow-xl w-72">
+                {showSchedule && (
+                  <div className="absolute bottom-full mb-2 left-0 md:left-auto md:right-0 bg-card border border-border rounded-xl p-4 shadow-xl w-72 z-50">
                   <div className="space-y-3">
                     <div>
                       <label className="text-sm text-muted-foreground">Дата</label>
@@ -742,7 +757,7 @@ function CreatePostPage() {
               <button
                 onClick={saveAsDraft}
                 disabled={!content.trim() || isSaving}
-                className="px-4 py-2 bg-secondary rounded-lg hover:bg-secondary/80 disabled:opacity-50"
+                className="px-3 md:px-4 py-2.5 md:py-2 bg-secondary rounded-lg hover:bg-secondary/80 disabled:opacity-50 text-sm"
               >
                 {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Черновик'}
               </button>
@@ -753,14 +768,14 @@ function CreatePostPage() {
               <button
                 onClick={publishNow}
                 disabled={!content.trim() || selectedChannels.length === 0 || isPublishing}
-                className="px-6 py-2 btn-core text-white rounded-lg disabled:opacity-50 flex items-center gap-2"
+                className="flex-1 md:flex-none px-4 md:px-6 py-2.5 md:py-2 btn-core text-white rounded-lg disabled:opacity-50 flex items-center justify-center gap-2 text-sm md:text-base"
               >
                 {isPublishing ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <Send className="w-4 h-4" />
                 )}
-                Опубликовать
+                <span>Опубликовать</span>
               </button>
             )}
 
@@ -769,7 +784,7 @@ function CreatePostPage() {
               <button
                 onClick={saveAsDraft}
                 disabled={!content.trim() || isSaving}
-                className="px-6 py-2 btn-core text-white rounded-lg disabled:opacity-50 flex items-center gap-2"
+                className="flex-1 md:flex-none px-4 md:px-6 py-2.5 md:py-2 btn-core text-white rounded-lg disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {isSaving ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -780,11 +795,15 @@ function CreatePostPage() {
               </button>
             )}
           </div>
+          {/* Mobile character count */}
+          <div className="md:hidden mt-2 text-center text-xs text-muted-foreground">
+            {content.length} символов
+          </div>
         </div>
       </div>
 
-      {/* Right panel — preview */}
-      <div className="w-[400px] flex flex-col bg-card/50">
+      {/* Right panel — preview (hidden on mobile) */}
+      <div className="hidden md:flex w-[400px] flex-col bg-card/50">
         <div className="h-16 px-6 border-b border-border flex items-center">
           <Eye className="w-5 h-5 mr-2 text-muted-foreground" />
           <h2 className="text-lg font-medium">Превью</h2>
