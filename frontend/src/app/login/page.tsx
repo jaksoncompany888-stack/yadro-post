@@ -201,8 +201,10 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-20 h-20 mx-auto rounded-2xl gradient-ember flex items-center justify-center text-white font-bold text-4xl shadow-xl glow-core mb-4">
-            K
+          <div className="w-20 h-20 mx-auto rounded-2xl bg-primary flex items-center justify-center shadow-xl glow-core mb-4">
+            <svg width="48" height="48" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M10 8V24M10 8L18 16M18 16L10 24M18 16L22 8M18 16L22 24" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
           </div>
           <h1 className="text-3xl font-bold mb-2">Kerno</h1>
           <p className="text-muted-foreground">SMM планировщик с AI</p>
