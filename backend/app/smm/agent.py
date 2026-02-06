@@ -711,25 +711,7 @@ class SMMAgent:
                     parts.append(insights)
                     print(f"[Context] Инсайты из {target_channel} (без копирования стиля)")
 
-        # 3.3 Стили конкурентов (если нет собственного канала и не указан target_channel)
-        # Берём ВСЕ проанализированные каналы пользователя
-        if not own_channel_style and not target_channel:
-            competitor_styles = self.db.fetch_all(
-                """SELECT content FROM memory_items
-                   WHERE user_id = ?
-                   AND content LIKE 'Стиль канала%'
-                   ORDER BY created_at DESC LIMIT 3""",
-                (user_id,)
-            )
-            if competitor_styles:
-                styles_text = []
-                for row in competitor_styles:
-                    # Берём первые 400 символов каждого стиля
-                    styles_text.append(row[0][:400])
-                parts.append(f"СТИЛИ ТВОИХ КОНКУРЕНТОВ (ориентируйся на них):\n" + "\n\n".join(styles_text))
-                print(f"[Context] Стили конкурентов: {len(competitor_styles)} каналов")
-
-        # 3.4 Релевантные конкуренты по теме через FTS5 (дополнительно)
+        # 3.3 Релевантные конкуренты по теме через FTS5
         if not target_channel and topic:
             relevant_styles = self._find_relevant_channel_styles(user_id, topic, limit=2)
             if relevant_styles:

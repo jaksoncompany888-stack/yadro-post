@@ -137,9 +137,12 @@ async def analyze_channel(
             memory = MemoryService(db=db)
 
             # Формируем текстовое описание стиля для памяти
+            # ВАЖНО: добавляем больше ключевых слов для FTS5 поиска
             m = metrics["metrics"]
+            description_clean = info.get('description', '')[:200] if info.get('description') else ''
             style_content = f"""Стиль канала @{username}:
 📊 {info['title']} ({info['subscribers']} подписчиков)
+Тематика: {description_clean}
 Длина постов: {m['length_category']} (~{m['avg_length']} символов)
 Эмодзи: {m['emoji_style']} ({m['avg_emoji']} в среднем)
 Структура: {', '.join(m['structure'])}
@@ -147,7 +150,7 @@ async def analyze_channel(
 CTA: {m['cta_style']}
 Тип контента: {m['content_type']}
 Engagement: {m['engagement_rate']}%
-Топ слова: {', '.join(m['top_words'][:5])}"""
+Ключевые слова: {', '.join(m['top_words'][:10])}"""
 
             # Удаляем старый анализ этого канала (если есть)
             db.execute(
