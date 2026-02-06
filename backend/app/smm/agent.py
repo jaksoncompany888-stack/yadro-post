@@ -712,7 +712,6 @@ class SMMAgent:
                     print(f"[Context] Инсайты из {target_channel} (без копирования стиля)")
 
         # 3.3 Релевантные конкуренты по теме через FTS5
-        styles_found = False
         if not target_channel and topic:
             relevant_styles = self._find_relevant_channel_styles(user_id, topic, limit=2)
             if relevant_styles:
@@ -725,21 +724,6 @@ class SMMAgent:
                 if all_insights:
                     parts.append("\n---\n".join(all_insights[:2]))
                     print(f"[Context] FTS5: найдено {len(all_insights)} релевантных стилей")
-                    styles_found = True
-
-        # 3.4 Fallback: если FTS5 ничего не нашёл, берём все проанализированные каналы
-        if not own_channel_style and not target_channel and not styles_found:
-            fallback_styles = self.db.fetch_all(
-                """SELECT content FROM memory_items
-                   WHERE user_id = ?
-                   AND content LIKE 'Стиль канала%'
-                   ORDER BY created_at DESC LIMIT 3""",
-                (user_id,)
-            )
-            if fallback_styles:
-                styles_text = "\n\n".join([row[0][:400] for row in fallback_styles])
-                parts.append(f"СТИЛИ ТВОИХ КАНАЛОВ (ориентируйся на них):\n{styles_text}")
-                print(f"[Context] Fallback: взято {len(fallback_styles)} проанализированных каналов")
 
         # 4. ТИПИЧНЫЕ ПРАВКИ КЛИЕНТА
         edits = self.db.fetch_all(
