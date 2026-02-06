@@ -111,10 +111,12 @@ export function Sidebar() {
     <>
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-20 bg-card border-r border-border flex-col items-center py-4">
-        {/* Logo — Earth Core gradient */}
+        {/* Logo — K icon */}
         <Link href="/" className="mb-4">
-          <div className="w-10 h-10 rounded-xl gradient-ember flex items-center justify-center text-white font-bold text-lg shadow-lg glow-core">
-            K
+          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-lg glow-core">
+            <svg width="24" height="24" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M10 8V24M10 8L18 16M18 16L10 24M18 16L22 8M18 16L22 24" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
           </div>
         </Link>
 
