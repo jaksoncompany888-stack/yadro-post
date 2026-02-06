@@ -60,7 +60,7 @@ class ChannelAnalysis(BaseModel):
 
 class AnalyzeRequest(BaseModel):
     channel: str  # @username или username
-    limit: int = 30  # Больше постов = лучше анализ разных тем
+    limit: int = 10
     save_to_memory: bool = True  # Сохранять анализ в память пользователя
 
 
