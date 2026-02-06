@@ -14,7 +14,7 @@ export default function LoginPage() {
   const [authState, setAuthState] = useState<AuthState>('idle')
   const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
-  const [botUsername, setBotUsername] = useState<string>('KernoBot')
+  const [botUsername, setBotUsername] = useState<string>('YadroPost_bot')
 
   // Form fields
   const [email, setEmail] = useState('')
