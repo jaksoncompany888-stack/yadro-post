@@ -140,6 +140,17 @@ export function ChannelsSidebar() {
   }
 
   return (
+    <>
+    {/* Mobile: floating button to open resources */}
+    <button
+      onClick={() => setShowAddModal(true)}
+      className="md:hidden fixed top-3 right-3 z-40 w-10 h-10 bg-primary rounded-full flex items-center justify-center shadow-lg"
+      title="Мои ресурсы"
+    >
+      <span className="text-white text-sm font-medium">{channels.length || '+'}</span>
+    </button>
+
+    {/* Desktop: sidebar */}
     <div className="hidden md:flex w-52 border-r border-border p-4 flex-col">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm font-medium">Мои ресурсы</h2>
@@ -239,6 +250,87 @@ export function ChannelsSidebar() {
         />
       )}
     </div>
+
+    {/* Mobile: full-screen resources modal */}
+    {showAddModal && (
+      <div className="md:hidden fixed inset-0 bg-background z-50 flex flex-col">
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <h2 className="text-lg font-semibold">Мои ресурсы</h2>
+          <button
+            onClick={() => setShowAddModal(false)}
+            className="p-2 rounded-lg hover:bg-secondary"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-auto p-4">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          ) : channels.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="text-muted-foreground mb-4">Ресурсов пока нет</div>
+              <p className="text-sm text-muted-foreground mb-6">
+                Подключите свои соцсети для публикации контента
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {channels.map((channel) => {
+                const platform = getPlatformInfo(channel.platform)
+                return (
+                  <div
+                    key={channel.channel_id}
+                    className={clsx(
+                      'flex items-center gap-3 p-3 rounded-xl border transition-all',
+                      selectedChannels.includes(channel.channel_id)
+                        ? 'border-primary bg-primary/10'
+                        : 'border-border'
+                    )}
+                  >
+                    <button
+                      onClick={() => toggleChannel(channel.channel_id)}
+                      className="flex-1 flex items-center gap-3"
+                    >
+                      <div className={clsx(
+                        'w-10 h-10 rounded-full flex items-center justify-center text-white',
+                        platform.color
+                      )}>
+                        {platform.icon}
+                      </div>
+                      <div className="flex-1 text-left">
+                        <div className="font-medium">{channel.name}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {platform.name}
+                          {channel.subscribers > 0 && ` • ${formatNumber(channel.subscribers)}`}
+                        </div>
+                      </div>
+                      {selectedChannels.includes(channel.channel_id) && (
+                        <Check className="w-5 h-5 text-primary" />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => removeChannel(channel.channel_id)}
+                      className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Add resource section */}
+        <div className="p-4 border-t border-border">
+          <MobileAddResource onChannelAdded={handleChannelAdded} />
+        </div>
+      </div>
+    )}
+    </>
   )
 }
 
@@ -451,6 +543,103 @@ function AddResourceModal({
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+// Mobile inline add resource component
+function MobileAddResource({
+  onChannelAdded,
+}: {
+  onChannelAdded: (channel: UserChannel) => void
+}) {
+  const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null)
+  const [channelInput, setChannelInput] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const platform = selectedPlatform ? PLATFORMS.find(p => p.id === selectedPlatform) : null
+
+  const addChannel = async () => {
+    if (!channelInput.trim() || !selectedPlatform) return
+
+    setLoading(true)
+    setError('')
+
+    try {
+      const response = await userChannelsApi.add(channelInput, selectedPlatform)
+      if (response.data.channel_info) {
+        onChannelAdded(response.data.channel_info)
+        setChannelInput('')
+        setSelectedPlatform(null)
+      } else if (response.data.valid === false) {
+        setError(response.data.error || 'Не удалось добавить ресурс')
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Ошибка добавления')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (!selectedPlatform) {
+    return (
+      <div>
+        <div className="text-sm font-medium mb-3">Добавить ресурс</div>
+        <div className="flex flex-wrap gap-2">
+          {PLATFORMS.slice(0, 4).map((p) => (
+            <button
+              key={p.id}
+              onClick={() => setSelectedPlatform(p.id)}
+              className={clsx(
+                'flex items-center gap-2 px-3 py-2 rounded-lg border border-border hover:border-primary/50 transition-colors',
+              )}
+            >
+              <span>{p.icon}</span>
+              <span className="text-sm">{p.name}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => setSelectedPlatform(null)}
+          className="text-sm text-muted-foreground"
+        >
+          ← Назад
+        </button>
+        <span className="text-sm font-medium">{platform?.name}</span>
+      </div>
+
+      <div className="flex gap-2">
+        <input
+          type="text"
+          placeholder={platform?.placeholder}
+          value={channelInput}
+          onChange={(e) => setChannelInput(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && addChannel()}
+          className="flex-1 bg-input rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary"
+          autoFocus
+        />
+        <button
+          onClick={addChannel}
+          disabled={loading || !channelInput.trim()}
+          className="px-4 py-3 btn-core text-white rounded-lg disabled:opacity-50"
+        >
+          {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
+        </button>
+      </div>
+
+      {error && (
+        <div className="text-sm text-red-400">{error}</div>
+      )}
+
+      <p className="text-xs text-muted-foreground">{platform?.hint}</p>
     </div>
   )
 }
