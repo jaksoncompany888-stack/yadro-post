@@ -162,6 +162,16 @@ export function Sidebar() {
           <span className="text-[10px]">{isDark ? 'Светлая' : 'Тёмная'}</span>
         </button>
 
+        {/* Help / Onboarding */}
+        <button
+          onClick={openOnboarding}
+          className="w-14 h-14 rounded-xl flex flex-col items-center justify-center gap-1 transition-all duration-200 text-muted-foreground hover:bg-secondary hover:text-foreground"
+          title="Инструкция"
+        >
+          <HelpCircle className="w-5 h-5" />
+          <span className="text-[10px]">Помощь</span>
+        </button>
+
         {/* Settings */}
         <Link
           href="/settings"
