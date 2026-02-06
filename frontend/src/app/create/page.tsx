@@ -174,14 +174,14 @@ function CreatePostPage() {
 
     // First preserve existing HTML bold/italic tags
     html = html
-      .replace(/<b>/gi, '\x00BOLD_OPEN\x00')
-      .replace(/<\/b>/gi, '\x00BOLD_CLOSE\x00')
-      .replace(/<strong>/gi, '\x00BOLD_OPEN\x00')
-      .replace(/<\/strong>/gi, '\x00BOLD_CLOSE\x00')
-      .replace(/<i>/gi, '\x00ITALIC_OPEN\x00')
-      .replace(/<\/i>/gi, '\x00ITALIC_CLOSE\x00')
-      .replace(/<em>/gi, '\x00ITALIC_OPEN\x00')
-      .replace(/<\/em>/gi, '\x00ITALIC_CLOSE\x00')
+      .replace(/<b>/gi, '___BOLD_OPEN___')
+      .replace(/<\/b>/gi, '___BOLD_CLOSE___')
+      .replace(/<strong>/gi, '___BOLD_OPEN___')
+      .replace(/<\/strong>/gi, '___BOLD_CLOSE___')
+      .replace(/<i>/gi, '___ITALIC_OPEN___')
+      .replace(/<\/i>/gi, '___ITALIC_CLOSE___')
+      .replace(/<em>/gi, '___ITALIC_OPEN___')
+      .replace(/<\/em>/gi, '___ITALIC_CLOSE___')
 
     // Escape remaining HTML
     html = html
@@ -191,10 +191,10 @@ function CreatePostPage() {
 
     // Restore preserved tags
     html = html
-      .replace(/\x00BOLD_OPEN\x00/g, '<b>')
-      .replace(/\x00BOLD_CLOSE\x00/g, '</b>')
-      .replace(/\x00ITALIC_OPEN\x00/g, '<i>')
-      .replace(/\x00ITALIC_CLOSE\x00/g, '</i>')
+      .replace(/___BOLD_OPEN___/g, '<b>')
+      .replace(/___BOLD_CLOSE___/g, '</b>')
+      .replace(/___ITALIC_OPEN___/g, '<i>')
+      .replace(/___ITALIC_CLOSE___/g, '</i>')
 
     // Convert markdown to HTML
     html = html
@@ -413,14 +413,14 @@ function CreatePostPage() {
   const renderFormattedContent = (text: string) => {
     // Step 1: Preserve allowed HTML tags through XSS escaping
     let html = text
-      .replace(/<b>/gi, '\x00BOLD_OPEN\x00')
-      .replace(/<\/b>/gi, '\x00BOLD_CLOSE\x00')
-      .replace(/<strong>/gi, '\x00BOLD_OPEN\x00')
-      .replace(/<\/strong>/gi, '\x00BOLD_CLOSE\x00')
-      .replace(/<i>/gi, '\x00ITALIC_OPEN\x00')
-      .replace(/<\/i>/gi, '\x00ITALIC_CLOSE\x00')
-      .replace(/<em>/gi, '\x00ITALIC_OPEN\x00')
-      .replace(/<\/em>/gi, '\x00ITALIC_CLOSE\x00')
+      .replace(/<b>/gi, '___BOLD_OPEN___')
+      .replace(/<\/b>/gi, '___BOLD_CLOSE___')
+      .replace(/<strong>/gi, '___BOLD_OPEN___')
+      .replace(/<\/strong>/gi, '___BOLD_CLOSE___')
+      .replace(/<i>/gi, '___ITALIC_OPEN___')
+      .replace(/<\/i>/gi, '___ITALIC_CLOSE___')
+      .replace(/<em>/gi, '___ITALIC_OPEN___')
+      .replace(/<\/em>/gi, '___ITALIC_CLOSE___')
 
     // Step 2: Escape remaining HTML
     html = html
@@ -430,10 +430,10 @@ function CreatePostPage() {
 
     // Step 3: Restore allowed tags
     html = html
-      .replace(/\x00BOLD_OPEN\x00/g, '<strong>')
-      .replace(/\x00BOLD_CLOSE\x00/g, '</strong>')
-      .replace(/\x00ITALIC_OPEN\x00/g, '<em>')
-      .replace(/\x00ITALIC_CLOSE\x00/g, '</em>')
+      .replace(/___BOLD_OPEN___/g, '<strong>')
+      .replace(/___BOLD_CLOSE___/g, '</strong>')
+      .replace(/___ITALIC_OPEN___/g, '<em>')
+      .replace(/___ITALIC_CLOSE___/g, '</em>')
 
     // Step 4: Convert markdown to HTML
     html = html
@@ -442,7 +442,7 @@ function CreatePostPage() {
       .replace(/_(.*?)_/g, '<em>$1</em>')
       .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" class="text-primary underline">$1</a>')
 
-    return <div className="whitespace-pre-wrap text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: html }} />
+    return (<div className="whitespace-pre-wrap text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: html }} />)
   }
 
   return (
