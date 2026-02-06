@@ -16,6 +16,24 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+// Handle 401 errors - redirect to login
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Clear invalid token
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+      document.cookie = 'token=; path=/; max-age=0; SameSite=Lax'
+      // Redirect to login (only in browser)
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login'
+      }
+    }
+    return Promise.reject(error)
+  }
+)
+
 // API methods
 export const postsApi = {
   list: (params?: { status?: string }) => api.get('/api/posts', { params }),
