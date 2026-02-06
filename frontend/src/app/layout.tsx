@@ -7,8 +7,12 @@ import { LayoutWrapper } from '@/components/layout-wrapper'
 const inter = Inter({ subsets: ['latin', 'cyrillic'] })
 
 export const metadata: Metadata = {
-  title: 'Ядро Post - СММ планировщик с AI',
+  title: 'Kerno — SMM планировщик с AI',
   description: 'Планируйте и публикуйте посты в Telegram и VK с помощью AI',
+  icons: {
+    icon: '/favicon.svg',
+    apple: '/apple-icon.svg',
+  },
 }
 
 export default function RootLayout({
