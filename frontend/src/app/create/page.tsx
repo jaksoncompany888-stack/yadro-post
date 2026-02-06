@@ -479,9 +479,14 @@ function CreatePostPage() {
             <div className="flex flex-wrap gap-3">
               {channels.map((channel) => (
                 <button
+                  type="button"
                   key={channel.channel_id}
                   onClick={() => toggleChannel(channel.channel_id)}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-full border-2 transition-all ${
+                  onTouchEnd={(e) => {
+                    e.preventDefault()
+                    toggleChannel(channel.channel_id)
+                  }}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-full border-2 transition-all cursor-pointer select-none active:scale-95 ${
                     selectedChannels.includes(channel.channel_id)
                       ? 'border-primary bg-primary/10'
                       : 'border-border hover:border-primary/50 grayscale'
