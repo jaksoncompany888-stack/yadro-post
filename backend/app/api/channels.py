@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException, Depends
 
 from app.tools.channel_parser import ChannelParser
 from app.api.deps import get_current_user, get_db
+from app.memory import MemoryService, MemoryType
 
 
 router = APIRouter(prefix="/channels", tags=["channels"])
@@ -60,6 +61,7 @@ class ChannelAnalysis(BaseModel):
 class AnalyzeRequest(BaseModel):
     channel: str  # @username или username
     limit: int = 10
+    save_to_memory: bool = True  # Сохранять анализ в память пользователя
 
 
 # =============================================================================
@@ -67,7 +69,11 @@ class AnalyzeRequest(BaseModel):
 # =============================================================================
 
 @router.post("/analyze", response_model=ChannelAnalysis)
-async def analyze_channel(data: AnalyzeRequest):
+async def analyze_channel(
+    data: AnalyzeRequest,
+    db=Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
     """
     Анализ Telegram канала.
 
@@ -77,8 +83,11 @@ async def analyze_channel(data: AnalyzeRequest):
     - Хуки и CTA
     - Просмотры, реакции, engagement
     - Рекомендуемая temperature для AI
+
+    Сохраняет анализ в память пользователя для использования при генерации постов.
     """
     parser = ChannelParser()
+    user_id = current_user["id"]
 
     try:
         # Получаем информацию о канале
@@ -109,7 +118,7 @@ async def analyze_channel(data: AnalyzeRequest):
         # Формируем username
         username = data.channel.replace("@", "").replace("https://t.me/", "")
 
-        return ChannelAnalysis(
+        analysis = ChannelAnalysis(
             channel=ChannelInfo(
                 username=username,
                 title=info["title"],
@@ -122,6 +131,52 @@ async def analyze_channel(data: AnalyzeRequest):
             ),
             examples=metrics["examples"],
         )
+
+        # Сохраняем анализ в память пользователя
+        if data.save_to_memory:
+            memory = MemoryService(db=db)
+
+            # Формируем текстовое описание стиля для памяти
+            m = metrics["metrics"]
+            style_content = f"""Стиль канала @{username}:
+📊 {info['title']} ({info['subscribers']} подписчиков)
+Длина постов: {m['length_category']} (~{m['avg_length']} символов)
+Эмодзи: {m['emoji_style']} ({m['avg_emoji']} в среднем)
+Структура: {', '.join(m['structure'])}
+Хуки: {', '.join(m['hook_patterns'])}
+CTA: {m['cta_style']}
+Тип контента: {m['content_type']}
+Engagement: {m['engagement_rate']}%
+Топ слова: {', '.join(m['top_words'][:5])}"""
+
+            # Удаляем старый анализ этого канала (если есть)
+            db.execute(
+                "DELETE FROM memory_items WHERE user_id = ? AND content LIKE ?",
+                (user_id, f"Стиль канала @{username}%")
+            )
+            # Удаляем из FTS
+            db.execute(
+                """DELETE FROM memory_fts WHERE rowid IN (
+                    SELECT id FROM memory_items WHERE user_id = ? AND content LIKE ?
+                )""",
+                (user_id, f"Стиль канала @{username}%")
+            )
+
+            # Сохраняем новый анализ
+            memory.store(
+                user_id=user_id,
+                content=style_content,
+                memory_type=MemoryType.CONTEXT,
+                importance=0.85,
+                metadata={
+                    "channel": f"@{username}",
+                    "recommended_temperature": m["recommended_temperature"],
+                    "content_type": m["content_type"],
+                    "analysis_version": "v2"
+                }
+            )
+
+        return analysis
 
     except HTTPException:
         raise
