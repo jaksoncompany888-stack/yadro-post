@@ -14,7 +14,7 @@ const PLATFORMS = [
     icon: '✈️',
     connectType: 'bot', // Требуется добавить бота
     placeholder: '@username или ссылка',
-    hint: 'Бот @YadroPost_bot должен быть администратором канала',
+    hint: 'Бот @KernoBot должен быть администратором канала',
   },
   {
     id: 'vk',
@@ -411,7 +411,7 @@ function AddResourceModal({
                 <ol className="list-decimal list-inside space-y-1 text-muted-foreground text-xs">
                   <li>Откройте настройки канала</li>
                   <li>Администраторы → Добавить</li>
-                  <li>Найдите @YadroPost_bot</li>
+                  <li>Найдите @KernoBot</li>
                   <li>Дайте права "Публикация сообщений"</li>
                 </ol>
               </div>

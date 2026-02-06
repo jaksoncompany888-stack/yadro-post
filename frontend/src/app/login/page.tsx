@@ -14,7 +14,7 @@ export default function LoginPage() {
   const [authState, setAuthState] = useState<AuthState>('idle')
   const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
-  const [botUsername, setBotUsername] = useState<string>('YadroPostBot')
+  const [botUsername, setBotUsername] = useState<string>('KernoBot')
 
   // Form fields
   const [email, setEmail] = useState('')
@@ -26,7 +26,7 @@ export default function LoginPage() {
 
   // Load theme
   useEffect(() => {
-    const saved = localStorage.getItem('yadro-theme')
+    const saved = localStorage.getItem('kerno-theme')
     if (saved === 'light') {
       setIsDark(false)
       document.documentElement.classList.add('light')
@@ -39,10 +39,10 @@ export default function LoginPage() {
     setIsDark(newIsDark)
     if (newIsDark) {
       document.documentElement.classList.remove('light')
-      localStorage.setItem('yadro-theme', 'dark')
+      localStorage.setItem('kerno-theme', 'dark')
     } else {
       document.documentElement.classList.add('light')
-      localStorage.setItem('yadro-theme', 'light')
+      localStorage.setItem('kerno-theme', 'light')
     }
   }
 
@@ -201,11 +201,11 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-20 h-20 mx-auto rounded-2xl gradient-ember flex items-center justify-center text-white font-bold text-2xl shadow-xl glow-core mb-4">
-            Yai
+          <div className="w-20 h-20 mx-auto rounded-2xl gradient-ember flex items-center justify-center text-white font-bold text-4xl shadow-xl glow-core mb-4">
+            K
           </div>
-          <h1 className="text-3xl font-bold mb-2">Ядро Post</h1>
-          <p className="text-muted-foreground">СММ планировщик с AI</p>
+          <h1 className="text-3xl font-bold mb-2">Kerno</h1>
+          <p className="text-muted-foreground">SMM планировщик с AI</p>
         </div>
 
         {/* Success State */}

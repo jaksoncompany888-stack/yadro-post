@@ -28,7 +28,7 @@ interface ChatHistory {
 const INITIAL_MESSAGE: Message = {
   id: '1',
   role: 'assistant',
-  content: 'Привет! Я AI-агент Ядро SMM. Могу помочь:\n\n• Сгенерировать пост на любую тему\n• Отредактировать текст\n• Создать цепляющий контент для Telegram и VK\n\nНапиши тему поста!',
+  content: 'Привет! Я AI-агент Kerno. Могу помочь:\n\n• Сгенерировать пост на любую тему\n• Отредактировать текст\n• Создать цепляющий контент для Telegram и VK\n\nНапиши тему поста!',
 }
 
 const MAX_HISTORY_COUNT = 5
@@ -74,7 +74,7 @@ export default function AgentPage() {
 
   // Load chat history from localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('yadro-chat-history')
+    const saved = localStorage.getItem('kerno-chat-history')
     if (saved) {
       try {
         const parsed = JSON.parse(saved)
@@ -88,7 +88,7 @@ export default function AgentPage() {
   // Save chat history to localStorage
   const saveChatHistory = (history: ChatHistory[]) => {
     const limited = history.slice(0, MAX_HISTORY_COUNT)
-    localStorage.setItem('yadro-chat-history', JSON.stringify(limited))
+    localStorage.setItem('kerno-chat-history', JSON.stringify(limited))
     setChatHistory(limited)
   }
 

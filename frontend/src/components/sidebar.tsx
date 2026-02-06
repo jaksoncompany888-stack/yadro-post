@@ -87,7 +87,7 @@ export function Sidebar() {
 
   // Load theme from localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('yadro-theme')
+    const saved = localStorage.getItem('kerno-theme')
     if (saved === 'light') {
       setIsDark(false)
       document.documentElement.classList.add('light')
@@ -100,10 +100,10 @@ export function Sidebar() {
     setIsDark(newIsDark)
     if (newIsDark) {
       document.documentElement.classList.remove('light')
-      localStorage.setItem('yadro-theme', 'dark')
+      localStorage.setItem('kerno-theme', 'dark')
     } else {
       document.documentElement.classList.add('light')
-      localStorage.setItem('yadro-theme', 'light')
+      localStorage.setItem('kerno-theme', 'light')
     }
   }
 
@@ -113,8 +113,8 @@ export function Sidebar() {
       <aside className="hidden md:flex w-20 bg-card border-r border-border flex-col items-center py-4">
         {/* Logo — Earth Core gradient */}
         <Link href="/" className="mb-4">
-          <div className="w-10 h-10 rounded-xl gradient-ember flex items-center justify-center text-white font-bold text-sm shadow-lg glow-core">
-            Yai
+          <div className="w-10 h-10 rounded-xl gradient-ember flex items-center justify-center text-white font-bold text-lg shadow-lg glow-core">
+            K
           </div>
         </Link>
 
