@@ -174,14 +174,14 @@ function CreatePostPage() {
 
     // First preserve existing HTML bold/italic tags
     html = html
-      .replace(/<b>/gi, '___BOLD_OPEN___')
-      .replace(/<\/b>/gi, '___BOLD_CLOSE___')
-      .replace(/<strong>/gi, '___BOLD_OPEN___')
-      .replace(/<\/strong>/gi, '___BOLD_CLOSE___')
-      .replace(/<i>/gi, '___ITALIC_OPEN___')
-      .replace(/<\/i>/gi, '___ITALIC_CLOSE___')
-      .replace(/<em>/gi, '___ITALIC_OPEN___')
-      .replace(/<\/em>/gi, '___ITALIC_CLOSE___')
+      .replace(/<b>/gi, '\x00BOLD_OPEN\x00')
+      .replace(/<\/b>/gi, '\x00BOLD_CLOSE\x00')
+      .replace(/<strong>/gi, '\x00BOLD_OPEN\x00')
+      .replace(/<\/strong>/gi, '\x00BOLD_CLOSE\x00')
+      .replace(/<i>/gi, '\x00ITALIC_OPEN\x00')
+      .replace(/<\/i>/gi, '\x00ITALIC_CLOSE\x00')
+      .replace(/<em>/gi, '\x00ITALIC_OPEN\x00')
+      .replace(/<\/em>/gi, '\x00ITALIC_CLOSE\x00')
 
     // Escape remaining HTML
     html = html
@@ -191,10 +191,10 @@ function CreatePostPage() {
 
     // Restore preserved tags
     html = html
-      .replace(/___BOLD_OPEN___/g, '<b>')
-      .replace(/___BOLD_CLOSE___/g, '</b>')
-      .replace(/___ITALIC_OPEN___/g, '<i>')
-      .replace(/___ITALIC_CLOSE___/g, '</i>')
+      .replace(/\x00BOLD_OPEN\x00/g, '<b>')
+      .replace(/\x00BOLD_CLOSE\x00/g, '</b>')
+      .replace(/\x00ITALIC_OPEN\x00/g, '<i>')
+      .replace(/\x00ITALIC_CLOSE\x00/g, '</i>')
 
     // Convert markdown to HTML
     html = html
@@ -413,14 +413,14 @@ function CreatePostPage() {
   const renderFormattedContent = (text: string) => {
     // Step 1: Preserve allowed HTML tags through XSS escaping
     let html = text
-      .replace(/<b>/gi, '___BOLD_OPEN___')
-      .replace(/<\/b>/gi, '___BOLD_CLOSE___')
-      .replace(/<strong>/gi, '___BOLD_OPEN___')
-      .replace(/<\/strong>/gi, '___BOLD_CLOSE___')
-      .replace(/<i>/gi, '___ITALIC_OPEN___')
-      .replace(/<\/i>/gi, '___ITALIC_CLOSE___')
-      .replace(/<em>/gi, '___ITALIC_OPEN___')
-      .replace(/<\/em>/gi, '___ITALIC_CLOSE___')
+      .replace(/<b>/gi, '\x00BOLD_OPEN\x00')
+      .replace(/<\/b>/gi, '\x00BOLD_CLOSE\x00')
+      .replace(/<strong>/gi, '\x00BOLD_OPEN\x00')
+      .replace(/<\/strong>/gi, '\x00BOLD_CLOSE\x00')
+      .replace(/<i>/gi, '\x00ITALIC_OPEN\x00')
+      .replace(/<\/i>/gi, '\x00ITALIC_CLOSE\x00')
+      .replace(/<em>/gi, '\x00ITALIC_OPEN\x00')
+      .replace(/<\/em>/gi, '\x00ITALIC_CLOSE\x00')
 
     // Step 2: Escape remaining HTML
     html = html
@@ -430,10 +430,10 @@ function CreatePostPage() {
 
     // Step 3: Restore allowed tags
     html = html
-      .replace(/___BOLD_OPEN___/g, '<strong>')
-      .replace(/___BOLD_CLOSE___/g, '</strong>')
-      .replace(/___ITALIC_OPEN___/g, '<em>')
-      .replace(/___ITALIC_CLOSE___/g, '</em>')
+      .replace(/\x00BOLD_OPEN\x00/g, '<strong>')
+      .replace(/\x00BOLD_CLOSE\x00/g, '</strong>')
+      .replace(/\x00ITALIC_OPEN\x00/g, '<em>')
+      .replace(/\x00ITALIC_CLOSE\x00/g, '</em>')
 
     // Step 4: Convert markdown to HTML
     html = html
@@ -442,7 +442,7 @@ function CreatePostPage() {
       .replace(/_(.*?)_/g, '<em>$1</em>')
       .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" class="text-primary underline">$1</a>')
 
-    return (<div className="whitespace-pre-wrap text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: html }} />)
+    return <div className="whitespace-pre-wrap text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: html }} />
   }
 
   return (
@@ -450,7 +450,7 @@ function CreatePostPage() {
       {/* Left panel — editor */}
       <div className="flex-1 flex flex-col md:border-r border-border min-h-0">
         {/* Header */}
-        <div className="h-14 md:h-16 px-4 md:px-6 border-b border-border flex items-center gap-3 md:gap-4 shrink-0">
+        <div className="h-14 md:h-16 px-4 md:px-6 border-b border-border flex items-center gap-2 md:gap-4 shrink-0">
           <button
             onClick={handleExit}
             className="p-2 rounded-lg hover:bg-secondary transition-colors"
@@ -458,29 +458,17 @@ function CreatePostPage() {
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="text-lg md:text-xl font-semibold flex-1">
-            {isNoteMode ? 'Создать заметку' : editingDraftId ? 'Редактировать' : 'Создать пост'}
+          <h1 className="text-lg md:text-xl font-semibold flex-1 truncate">
+            {isNoteMode ? 'Заметка' : editingDraftId ? 'Редактировать' : 'Создать пост'}
           </h1>
           {loadingDraft && <Loader2 className="w-5 h-5 animate-spin text-primary" />}
-          {/* Mobile preview button */}
-          {content && !isNoteMode && (
-            <button
-              className="md:hidden p-2 rounded-lg hover:bg-secondary transition-colors"
-              onClick={() => {
-                // Scroll to show preview in a modal or alert
-                alert('Превью:\n\n' + content.substring(0, 500) + (content.length > 500 ? '...' : ''))
-              }}
-            >
-              <Eye className="w-5 h-5 text-muted-foreground" />
-            </button>
-          )}
         </div>
 
         {/* Channel selection - только для постов */}
         {!isNoteMode && (
           <div className="px-4 md:px-6 py-3 md:py-4 border-b border-border shrink-0">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-sm text-muted-foreground">Каналы:</span>
+            <div className="flex items-center gap-2 mb-2 md:mb-3">
+              <span className="text-xs md:text-sm text-muted-foreground">Каналы:</span>
               {loadingChannels ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : channels.length === 0 ? (
@@ -498,24 +486,24 @@ function CreatePostPage() {
                     e.preventDefault()
                     toggleChannel(channel.channel_id)
                   }}
-                  className={`flex items-center gap-2 px-2 md:px-3 py-1.5 md:py-2 rounded-full border-2 transition-all cursor-pointer select-none active:scale-95 ${
+                  className={`flex items-center gap-1.5 md:gap-2 px-2 md:px-3 py-1.5 md:py-2 rounded-full border-2 transition-all cursor-pointer select-none active:scale-95 ${
                     selectedChannels.includes(channel.channel_id)
                       ? 'border-primary bg-primary/10'
                       : 'border-border hover:border-primary/50 grayscale'
                   }`}
                 >
                   <div className="relative">
-                    <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-blue-400/20 flex items-center justify-center">
-                      <Send className="w-3.5 h-3.5 md:w-4 md:h-4 text-blue-400" />
+                    <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-blue-400/20 flex items-center justify-center">
+                      <Send className="w-3 h-3 md:w-4 md:h-4 text-blue-400" />
                     </div>
                     {selectedChannels.includes(channel.channel_id) && (
                       <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 md:w-4 md:h-4 bg-primary rounded-full flex items-center justify-center">
-                        <Check className="w-2.5 h-2.5 md:w-3 md:h-3 text-white" />
+                        <Check className="w-2 h-2 md:w-3 md:h-3 text-white" />
                       </div>
                     )}
                   </div>
                   <div className="text-left">
-                    <div className="text-xs md:text-sm font-medium">{channel.name}</div>
+                    <div className="text-xs md:text-sm font-medium truncate max-w-[80px] md:max-w-none">{channel.name}</div>
                     <div className="text-[10px] md:text-xs text-muted-foreground">
                       {formatNumber(channel.subscribers)}
                     </div>
@@ -541,7 +529,7 @@ function CreatePostPage() {
             <div className="flex gap-2 md:gap-3">
               <input
                 type="text"
-                placeholder="Тема для генерации..."
+                placeholder="Тема..."
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && generateContent()}
@@ -550,7 +538,7 @@ function CreatePostPage() {
               <button
                 onClick={generateContent}
                 disabled={isGenerating || !topic.trim()}
-                className="px-3 md:px-4 py-2 btn-core text-white rounded-lg flex items-center gap-1.5 md:gap-2 disabled:opacity-50 shrink-0"
+                className="px-3 md:px-4 py-2 btn-core text-white rounded-lg flex items-center gap-1.5 md:gap-2 disabled:opacity-50 shrink-0 text-sm md:text-base"
               >
                 {isGenerating ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -695,29 +683,28 @@ function CreatePostPage() {
         )}
 
         {/* Bottom action bar */}
-        <div className="shrink-0 px-4 md:px-6 py-3 md:py-4 border-t border-border mb-16 md:mb-0">
-          {/* Mobile: stacked layout */}
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="hidden md:flex items-center gap-4">
-              <span className="text-sm text-muted-foreground">
-                {content.length} символов
-              </span>
-            </div>
+        <div className="shrink-0 px-3 md:px-6 py-3 md:py-4 border-t border-border mb-16 md:mb-0">
+          {/* Character count - hidden on mobile */}
+          <div className="hidden md:flex items-center gap-4 mb-3">
+            <span className="text-sm text-muted-foreground">
+              {content.length} символов
+            </span>
+          </div>
 
-            <div className="flex items-center gap-2 md:gap-3">
-              {/* Schedule - для постов и заметок */}
-              <div className="relative flex-1 md:flex-none">
-                <button
-                  onClick={() => setShowSchedule(!showSchedule)}
-                  className="w-full md:w-auto px-3 md:px-4 py-2.5 md:py-2 bg-secondary rounded-lg flex items-center justify-center gap-2 hover:bg-secondary/80 text-sm"
-                >
-                  <Calendar className="w-4 h-4" />
-                  <span className="hidden sm:inline">{isNoteMode ? 'В календарь' : 'Запланировать'}</span>
-                  <ChevronDown className={`w-4 h-4 transition-transform ${showSchedule ? 'rotate-180' : ''}`} />
-                </button>
+          <div className="flex flex-wrap items-center gap-2 md:gap-3">
+            {/* Schedule - для постов и заметок */}
+            <div className="relative">
+              <button
+                onClick={() => setShowSchedule(!showSchedule)}
+                className="px-3 md:px-4 py-2 bg-secondary rounded-lg flex items-center gap-1.5 md:gap-2 hover:bg-secondary/80 text-sm"
+              >
+                <Calendar className="w-4 h-4" />
+                <span className="hidden sm:inline">{isNoteMode ? 'В календарь' : 'Запланировать'}</span>
+                <ChevronDown className={`w-4 h-4 transition-transform ${showSchedule ? 'rotate-180' : ''}`} />
+              </button>
 
-                {showSchedule && (
-                  <div className="absolute bottom-full mb-2 left-0 md:left-auto md:right-0 bg-card border border-border rounded-xl p-4 shadow-xl w-72 z-50">
+              {showSchedule && (
+                <div className="absolute bottom-full mb-2 left-0 md:left-auto md:right-0 bg-card border border-border rounded-xl p-4 shadow-xl w-64 md:w-72 z-50">
                   <div className="space-y-3">
                     <div>
                       <label className="text-sm text-muted-foreground">Дата</label>
@@ -745,7 +732,7 @@ function CreatePostPage() {
                       className="w-full py-2 btn-core text-white rounded-lg disabled:opacity-50 flex items-center justify-center gap-2"
                     >
                       {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Clock className="w-4 h-4" />}
-                      {isNoteMode ? 'Сохранить заметку' : 'Добавить в календарь'}
+                      OK
                     </button>
                   </div>
                 </div>
@@ -757,7 +744,7 @@ function CreatePostPage() {
               <button
                 onClick={saveAsDraft}
                 disabled={!content.trim() || isSaving}
-                className="px-3 md:px-4 py-2.5 md:py-2 bg-secondary rounded-lg hover:bg-secondary/80 disabled:opacity-50 text-sm"
+                className="px-3 md:px-4 py-2 bg-secondary rounded-lg hover:bg-secondary/80 disabled:opacity-50 text-sm"
               >
                 {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Черновик'}
               </button>
@@ -768,14 +755,15 @@ function CreatePostPage() {
               <button
                 onClick={publishNow}
                 disabled={!content.trim() || selectedChannels.length === 0 || isPublishing}
-                className="flex-1 md:flex-none px-4 md:px-6 py-2.5 md:py-2 btn-core text-white rounded-lg disabled:opacity-50 flex items-center justify-center gap-2 text-sm md:text-base"
+                className="flex-1 md:flex-none px-4 md:px-6 py-2 btn-core text-white rounded-lg disabled:opacity-50 flex items-center justify-center gap-2 text-sm md:text-base"
               >
                 {isPublishing ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <Send className="w-4 h-4" />
                 )}
-                <span>Опубликовать</span>
+                <span className="hidden sm:inline">Опубликовать</span>
+                <span className="sm:hidden">Пост</span>
               </button>
             )}
 
@@ -784,7 +772,7 @@ function CreatePostPage() {
               <button
                 onClick={saveAsDraft}
                 disabled={!content.trim() || isSaving}
-                className="flex-1 md:flex-none px-4 md:px-6 py-2.5 md:py-2 btn-core text-white rounded-lg disabled:opacity-50 flex items-center justify-center gap-2"
+                className="flex-1 px-4 md:px-6 py-2 btn-core text-white rounded-lg disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {isSaving ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -794,10 +782,6 @@ function CreatePostPage() {
                 Сохранить
               </button>
             )}
-          </div>
-          {/* Mobile character count */}
-          <div className="md:hidden mt-2 text-center text-xs text-muted-foreground">
-            {content.length} символов
           </div>
         </div>
       </div>
